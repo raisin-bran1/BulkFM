@@ -1,2 +1,2 @@
 osdr_processed_spaceflight.parquet
-*.pt
+base_model.pt
