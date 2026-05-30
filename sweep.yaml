@@ -1,0 +1,51 @@
+# Binformer Hyperparameter Sweep Configuration
+project: binformer-full
+method: random
+
+metric:
+  name: val_loss
+  goal: minimize
+
+parameters:
+  # Fixed Architecture & Resolution
+  hidden_dim:
+    value: 256
+  ffn_dim:
+    value: 1024
+  num_layers:
+    value: 4
+  num_heads:
+    value: 8
+  num_bins:
+    value: 50
+  
+  # Optimizer & Scheduling
+  learning_rate:
+    distribution: log_uniform_values
+    min: 1e-4
+    max: 1e-3
+  weight_decay:
+    values: [1e-4, 0]
+  warmup_epochs:
+    value: 2
+  
+  # Masking Strategy
+  mask_ratio:
+    values: [0.15, 0.35]
+  
+  # Sub-masking Strategy (BERT 80/10/10 split variations)
+  # Ensure these don't sum to > 1.0 (safety added to data.py too)
+  mask_token_prob:
+    values: [0.7, 0.8, 0.9]
+  random_token_prob:
+    value: 'auto'
+
+# Each agent handles 1 trial on 1 GPU
+command:
+  - torchrun
+  - --nnodes=1
+  - --nproc_per_node=1
+  - --rdzv_backend=c10d
+  - --rdzv_endpoint=localhost:0
+  - train.py
+  - ${args}

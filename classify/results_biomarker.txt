@@ -1,0 +1,150 @@
+BINFORMER
+--- Analyzing Stable Biomarkers for: Thymus ---
+Top Stable Dimension: 253 (Stability Score: 12.24, Mean Weight: 0.1089)
+
+Top 'Stable' Genes for Thymus (linked to Dim 253):
+ENSMUSG00000058258
+ENSMUSG00000060032
+ENSMUSG00000058558
+ENSMUSG00000046229
+ENSMUSG00000035150
+ENSMUSG00000028495
+ENSMUSG00000019877
+ENSMUSG00000008682
+ENSMUSG00000027828
+ENSMUSG00000029571
+Gene ID              | Corr     | Model  | Raw    | Match?
+-------------------------------------------------------
+ENSMUSG00000058258   | -0.9012  | DOWN   | DOWN   | YES
+ENSMUSG00000060032   | 0.9010   | UP     | UP     | YES
+ENSMUSG00000058558   | -0.9006  | DOWN   | DOWN   | YES
+ENSMUSG00000046229   | 0.8992   | UP     | UP     | YES
+ENSMUSG00000035150   | -0.8967  | DOWN   | DOWN   | YES
+ENSMUSG00000028495   | -0.8953  | DOWN   | DOWN   | YES
+ENSMUSG00000019877   | -0.8947  | DOWN   | DOWN   | YES
+ENSMUSG00000008682   | -0.8936  | DOWN   | DOWN   | YES
+ENSMUSG00000027828   | -0.8841  | DOWN   | DOWN   | YES
+ENSMUSG00000029571   | -0.8834  | DOWN   | DOWN   | YES
+
+--- Analyzing Stable Biomarkers for: Liver ---
+Top Stable Dimension: 10 (Stability Score: 10.12, Mean Weight: 0.4290)
+
+Top 'Stable' Genes for Liver (linked to Dim 10):
+Gene ID              | Corr     | Model  | Raw    | Match?
+-------------------------------------------------------
+ENSMUSG00000028188   | -0.6478  | DOWN   | DOWN   | YES
+ENSMUSG00000044906   | -0.6003  | DOWN   | DOWN   | YES
+ENSMUSG00000031751   | 0.5780   | UP     | UP     | YES
+ENSMUSG00000027618   | 0.5769   | UP     | UP     | YES
+ENSMUSG00000068250   | -0.5756  | DOWN   | UP     | NO
+ENSMUSG00000016493   | -0.5653  | DOWN   | UP     | NO
+ENSMUSG00000050545   | -0.5632  | DOWN   | UP     | NO
+ENSMUSG00000071652   | 0.5506   | UP     | UP     | YES
+ENSMUSG00000002320   | 0.5405   | UP     | UP     | YES
+ENSMUSG00000004056   | 0.5351   | UP     | UP     | YES
+
+--- Analyzing Stable Biomarkers for: Brain ---
+Top Stable Dimension: 55 (Stability Score: 15.30, Mean Weight: -0.6688)
+
+Top 'Stable' Genes for Brain (linked to Dim 55):
+Gene ID              | Corr     | Model  | Raw    | Match?
+-------------------------------------------------------
+ENSMUSG00000027227   | -0.8656  | UP     | UP     | YES
+ENSMUSG00000032602   | -0.8524  | UP     | DOWN   | NO
+ENSMUSG00000019868   | -0.8405  | UP     | UP     | YES
+ENSMUSG00000044573   | -0.8387  | UP     | UP     | YES
+ENSMUSG00000045294   | -0.8367  | UP     | DOWN   | NO
+ENSMUSG00000023147   | -0.8339  | UP     | DOWN   | NO
+ENSMUSG00000007458   | -0.8170  | UP     | DOWN   | NO
+ENSMUSG00000024997   | -0.8161  | UP     | UP     | YES
+ENSMUSG00000020528   | -0.8150  | UP     | DOWN   | NO
+ENSMUSG00000038982   | -0.8135  | UP     | DOWN   | NO
+
+--- Analyzing Stable Biomarkers for: Kidney ---
+Top Stable Dimension: 203 (Stability Score: 10.84, Mean Weight: 0.9660)
+
+Top 'Stable' Genes for Kidney (linked to Dim 203):
+Gene ID              | Corr     | Model  | Raw    | Match?
+-------------------------------------------------------
+ENSMUSG00000021972   | 0.8206   | UP     | UP     | YES
+ENSMUSG00000049728   | 0.8146   | UP     | UP     | YES
+ENSMUSG00000038902   | 0.8138   | UP     | UP     | YES
+ENSMUSG00000050567   | 0.8098   | UP     | UP     | YES
+ENSMUSG00000026113   | 0.8085   | UP     | UP     | YES
+ENSMUSG00000038002   | 0.8028   | UP     | UP     | YES
+ENSMUSG00000048271   | 0.8017   | UP     | UP     | YES
+ENSMUSG00000045671   | 0.8001   | UP     | UP     | YES
+ENSMUSG00000061607   | 0.7983   | UP     | UP     | YES
+ENSMUSG00000028868   | 0.7972   | UP     | UP     | YES
+
+
+
+
+PCA
+--- Analyzing Stable Biomarkers for: Thymus ---
+Top Stable Dimension: 85 (Stability Score: 10.99, Mean Weight: 0.2968)
+
+Top 'Stable' Genes for Thymus (linked to Dim 85):
+Gene ID              | Corr     | Model  | Raw    | Match?
+-------------------------------------------------------
+ENSMUSG00000064572   | 0.5158   | UP     | UP     | YES
+ENSMUSG00000020526   | -0.4971  | DOWN   | DOWN   | YES
+ENSMUSG00000038872   | 0.4789   | UP     | UP     | YES
+ENSMUSG00000077511   | 0.4675   | UP     | DOWN   | NO
+ENSMUSG00000022427   | -0.4672  | DOWN   | DOWN   | YES
+ENSMUSG00000045215   | 0.4656   | UP     | UP     | YES
+ENSMUSG00000044408   | -0.4646  | DOWN   | DOWN   | YES
+ENSMUSG00000037601   | -0.4616  | DOWN   | DOWN   | YES
+ENSMUSG00000039105   | -0.4529  | DOWN   | DOWN   | YES
+ENSMUSG00000041235   | 0.4494   | UP     | UP     | YES
+
+--- Analyzing Stable Biomarkers for: Liver ---
+Top Stable Dimension: 23 (Stability Score: 11.79, Mean Weight: 0.4674)
+
+Top 'Stable' Genes for Liver (linked to Dim 23):
+Gene ID              | Corr     | Model  | Raw    | Match?
+-------------------------------------------------------
+ENSMUSG00000030309   | 0.8377   | UP     | UP     | YES
+ENSMUSG00000007035   | 0.8087   | UP     | DOWN   | NO
+ENSMUSG00000028133   | 0.7890   | UP     | UP     | YES
+ENSMUSG00000043065   | 0.7685   | UP     | UP     | YES
+ENSMUSG00000040282   | 0.7652   | UP     | UP     | YES
+ENSMUSG00000075324   | 0.7616   | UP     | UP     | YES
+ENSMUSG00000009145   | 0.7607   | UP     | UP     | YES
+ENSMUSG00000021209   | 0.7559   | UP     | DOWN   | NO
+ENSMUSG00000027997   | 0.7557   | UP     | UP     | YES
+ENSMUSG00000073968   | 0.7536   | UP     | UP     | YES
+
+--- Analyzing Stable Biomarkers for: Brain ---
+Top Stable Dimension: 187 (Stability Score: 12.61, Mean Weight: 0.7519)
+
+Top 'Stable' Genes for Brain (linked to Dim 187):
+Gene ID              | Corr     | Model  | Raw    | Match?
+-------------------------------------------------------
+ENSMUSG00000042200   | 0.3903   | UP     | UP     | YES
+ENSMUSG00000023802   | -0.3552  | DOWN   | DOWN   | YES
+ENSMUSG00000024028   | -0.3465  | DOWN   | DOWN   | YES
+ENSMUSG00000031250   | -0.3329  | DOWN   | UP     | NO
+ENSMUSG00000025723   | -0.3230  | DOWN   | UP     | NO
+ENSMUSG00000005339   | 0.3119   | UP     | UP     | YES
+ENSMUSG00000088201   | 0.3104   | UP     | UP     | YES
+ENSMUSG00000076873   | -0.3035  | DOWN   | DOWN   | YES
+ENSMUSG00000035528   | -0.3015  | DOWN   | UP     | NO
+ENSMUSG00000000317   | 0.3002   | UP     | DOWN   | NO
+
+--- Analyzing Stable Biomarkers for: Kidney ---
+Top Stable Dimension: 62 (Stability Score: 13.55, Mean Weight: 0.7163)
+
+Top 'Stable' Genes for Kidney (linked to Dim 62):
+Gene ID              | Corr     | Model  | Raw    | Match?
+-------------------------------------------------------
+ENSMUSG00000022587   | 0.7539   | UP     | UP     | YES
+ENSMUSG00000047281   | 0.7457   | UP     | UP     | YES
+ENSMUSG00000074923   | 0.7262   | UP     | UP     | YES
+ENSMUSG00000002324   | 0.7235   | UP     | UP     | YES
+ENSMUSG00000025876   | 0.7231   | UP     | UP     | YES
+ENSMUSG00000018322   | 0.7156   | UP     | UP     | YES
+ENSMUSG00000021087   | 0.7137   | UP     | UP     | YES
+ENSMUSG00000078716   | 0.7083   | UP     | UP     | YES
+ENSMUSG00000033540   | 0.7073   | UP     | UP     | YES
+ENSMUSG00000025185   | 0.7049   | UP     | UP     | YES

@@ -1,0 +1,28 @@
+# Binformer Environment Configuration
+#
+# Create with:
+#   conda env create -f environment.yml
+#   conda activate nasa
+#
+# Savio setup:
+#   module load anaconda3
+#   source activate nasa
+
+name: nasa
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - numpy
+  - pandas
+  - pyarrow
+  - matplotlib
+  - scikit-learn
+  - tqdm
+  - pip:
+    - wandb
+
+# INSTALL WITH PIP AFTER ABOVE INSTALLATIONS
+# pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu121 torch==2.5.1+cu121
