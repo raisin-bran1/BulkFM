@@ -3,10 +3,16 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 import os
+import sys
 import argparse
 import json
 
-def prepare_splits(features_path, labels_path, vocab_path, column='spaceflight', output_dir="osdr", test_size=0.2, seed=42, mask_token=-10, balance=True):
+# Add project root to sys.path
+root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+if root_path not in sys.path:
+    sys.path.append(root_path)
+
+def prepare_splits(features_path, labels_path, vocab_path, column='spaceflight', output_dir="data/osdr", test_size=0.2, seed=42, mask_token=-10, balance=True):
     print(f"[INFO] Loading data...")
     vocab = pd.read_csv(vocab_path)
     gene_list = vocab['genes'].tolist()
@@ -100,11 +106,11 @@ def prepare_splits(features_path, labels_path, vocab_path, column='spaceflight',
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--features", type=str, default="osdr/osdr_processed_spaceflight.parquet")
-    parser.add_argument("--labels", type=str, default="osdr/spaceflight_labels_clean.parquet")
+    parser.add_argument("--features", type=str, default="data/osdr/osdr_processed_spaceflight.parquet")
+    parser.add_argument("--labels", type=str, default="data/osdr/spaceflight_labels_clean.parquet")
     parser.add_argument("--vocab", type=str, default="models/gene_vocabulary.csv")
     parser.add_argument("--column", type=str, default="spaceflight")
-    parser.add_argument("--output_dir", type=str, default="osdr")
+    parser.add_argument("--output_dir", type=str, default="data/osdr")
     parser.add_argument("--no_balance", action="store_false", dest="balance")
     args = parser.parse_args()
     

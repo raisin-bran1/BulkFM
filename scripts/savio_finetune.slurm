@@ -28,6 +28,6 @@ mkdir -p logs
 
 # 2. Execution
 echo "Starting OSDR Fine-tuning..."
-python finetune_osdr.py
+python downstream/osdr/finetune_osdr.py
 
 echo "Job ${SLURM_JOB_ID} complete."

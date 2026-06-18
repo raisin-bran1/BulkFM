@@ -19,8 +19,8 @@ from collections import Counter
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Classify OSDR Embeddings")
-    parser.add_argument("--embeddings", type=str, default="osdr/osdr_embeddings.pt", help="Path to embeddings .pt file")
-    parser.add_argument("--labels", type=str, default="osdr/organ_spaceflight_batch_labels.parquet", help="Path to labels parquet")
+    parser.add_argument("--embeddings", type=str, default="data/osdr/osdr_embeddings.pt", help="Path to embeddings .pt file")
+    parser.add_argument("--labels", type=str, default="data/osdr/organ_spaceflight_batch_labels.parquet", help="Path to labels parquet")
     parser.add_argument("--column", type=str, default="spaceflight", help="Column name to classify")
     parser.add_argument("--balance", action="store_true", help="Whether to perfectly balance classes by downsampling")
     parser.add_argument("--epochs", type=int, default=20, help="Number of epochs")

@@ -13,7 +13,7 @@ Training objective: MLM-style masking (mask 15% of genes, predict their bin)
 
 import torch
 import torch.nn as nn
-from slim_performer_model import SLiMPerformerLayer
+from models.slim_performer_model import SLiMPerformerLayer
 
 # ============================================================
 # BIN EXPRESSION EMBEDDING (BEE)

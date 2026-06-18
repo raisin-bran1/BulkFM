@@ -32,7 +32,7 @@ if [[ -n "${WANDB_SWEEP_ID:-}" ]]; then
 else
   # Fallback: Just run a single-GPU training run directly
   echo "Starting Single-GPU Binformer Training..."
-  torchrun --standalone --nproc_per_node=1 train.py
+  torchrun --standalone --nproc_per_node=1 training/train.py
 fi
 
 echo "Job ${SLURM_JOB_ID} complete."

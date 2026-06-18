@@ -4,10 +4,16 @@ import torch
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 import os
+import sys
+
+# Add project root to sys.path
+root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+if root_path not in sys.path:
+    sys.path.append(root_path)
 
 def main():
-    input_path = 'osdr/osdr_processed_spaceflight.parquet'
-    output_path = 'osdr/osdr_embeddings_pca.pt'
+    input_path = 'data/osdr/osdr_processed_spaceflight.parquet'
+    output_path = 'data/osdr/osdr_embeddings_pca.pt'
     
     print(f"Loading data from {input_path}...")
     df = pd.read_parquet(input_path)

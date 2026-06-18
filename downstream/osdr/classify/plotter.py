@@ -7,18 +7,24 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.preprocessing import StandardScaler
 import os
+import sys
+
+# Add project root to sys.path
+root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+if root_path not in sys.path:
+    sys.path.append(root_path)
 
 # Example usage:
-# python classify_embeddings/plotter.py --column organ --type pca --output plots/osdr_pca_organ.png
-# python classify_embeddings/plotter.py --column spaceflight --type tsne --output plots/spaceflight_tsne.png
+# python classify_embeddings/plotter.py --column organ --type pca --output results/plots/osdr_pca_organ.png
+# python classify_embeddings/plotter.py --column spaceflight --type tsne --output results/plots/spaceflight_tsne.png
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Plot OSDR Embeddings")
-    parser.add_argument("--embeddings", type=str, default="osdr/osdr_embeddings.pt", help="Path to embeddings .pt file")
-    parser.add_argument("--labels", type=str, default="osdr/organ_spaceflight_batch_labels.parquet", help="Path to labels parquet")
+    parser.add_argument("--embeddings", type=str, default="data/osdr/osdr_embeddings.pt", help="Path to embeddings .pt file")
+    parser.add_argument("--labels", type=str, default="data/osdr/organ_spaceflight_batch_labels.parquet", help="Path to labels parquet")
     parser.add_argument("--column", type=str, default="spaceflight", help="Column name to color by")
     parser.add_argument("--type", type=str, default="pca", choices=["pca", "tsne", "umap"], help="Type of plot: pca, tsne, umap")
-    parser.add_argument("--output", type=str, default=None, help="Path to save the plot (e.g., plots/plot.png)")
+    parser.add_argument("--output", type=str, default=None, help="Path to save the plot (e.g., results/plots/plot.png)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--no_scale", action="store_true", help="Disable scaling of embeddings before reduction")
     parser.add_argument("--filter_organ", type=str, default=None, help="Only include samples from this organ (e.g., 'Soleus')")
@@ -131,9 +137,9 @@ def main():
             plt.show()
         except Exception as e:
             # Create plots directory if it doesn't exist
-            if not os.path.exists('plots'):
-                os.makedirs('plots')
-            default_out = f"plots/osdr_{args.type}_{args.column}_{args.filter_organ if args.filter_organ else 'all'}.png"
+            if not os.path.exists('results/plots'):
+                os.makedirs('results/plots')
+            default_out = f"results/plots/osdr_{args.type}_{args.column}_{args.filter_organ if args.filter_organ else 'all'}.png"
             plt.savefig(default_out, dpi=300)
             print(f"[WARNING] Could not show plot ({e}). Saved to {default_out} instead.")
 

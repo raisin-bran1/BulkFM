@@ -13,6 +13,11 @@ import json
 import logging
 from pathlib import Path
 
+# Add project root to sys.path for absolute imports
+root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if root_path not in sys.path:
+    sys.path.append(root_path)
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -23,10 +28,10 @@ import torch.distributed as dist
 import pandas as pd
 
 # Import from our new modules
-from config import CONFIG, USE_SMOKE
-from data import get_sample_indices, load_batch_data, ExpressionMLMDataset
-from utils import _coerce_config_types, build_run_tag
-from binformer import Binformer
+from training.config import CONFIG, USE_SMOKE
+from training.data import get_sample_indices, load_batch_data, ExpressionMLMDataset
+from training.utils import _coerce_config_types, build_run_tag
+from models.binformer import Binformer
 
 # Force unbuffered output for DDP visibility
 try:

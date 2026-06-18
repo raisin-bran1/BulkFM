@@ -6,11 +6,12 @@ import os
 import sys
 
 # Ensure we can find binformer when running from the root
-if os.getcwd() not in sys.path:
-    sys.path.append(os.getcwd())
+root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+if root_path not in sys.path:
+    sys.path.append(root_path)
 
-from binformer import Binformer
-from binformer.osdr.utils import main_gene_selection, extract_feature
+from models.binformer import Binformer
+from downstream.osdr.utils import main_gene_selection, extract_feature
 
 def load_binformer(model_dir_path='models', device='cpu'):
     """

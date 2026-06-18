@@ -39,6 +39,6 @@ echo "---------------------------------------"
 torchrun \
     --standalone \
     --nproc_per_node=4 \
-    train.py
+    training/train.py
 
 echo "Job ${SLURM_JOB_ID} complete."

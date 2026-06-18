@@ -1,16 +1,23 @@
 import os
+import sys
 import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
-from binformer import Binformer
-from lora import apply_lora, get_lora_params
-from osdr_data import get_osdr_loaders
+
+# Add project root to sys.path for absolute imports
+root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if root_path not in sys.path:
+    sys.path.append(root_path)
+
+from models.binformer import Binformer
+from models.lora import apply_lora, get_lora_params
+from downstream.osdr.osdr_data import get_osdr_loaders
 import json
 from tqdm import tqdm
 from collections import Counter
-from finetune_config import FINETUNE_CONFIG
+from downstream.osdr.finetune_config import FINETUNE_CONFIG
 from sklearn.metrics import classification_report, confusion_matrix
 
 class AttentionPooling(nn.Module):

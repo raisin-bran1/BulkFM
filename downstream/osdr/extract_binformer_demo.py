@@ -1,12 +1,19 @@
 # RUN FROM DIRECTORY binformer
 
 import torch
-from binformer.osdr.extract_binformer import extract_osdr_embeddings
 import os
+import sys
+
+# Add project root to sys.path
+root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+if root_path not in sys.path:
+    sys.path.append(root_path)
+
+from downstream.osdr.extract_binformer import extract_osdr_embeddings
 
 # Set up paths
-input_csv = 'osdr/osdr_processed_spaceflight.csv'
-output_csv = 'osdr/osdr_embeddings.csv'
+input_csv = 'data/osdr/osdr_processed_spaceflight.csv'
+output_csv = 'data/osdr/osdr_embeddings.csv'
 
 # Run extraction
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

@@ -8,6 +8,12 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.metrics import accuracy_score
 import os
+import sys
+
+# Add project root to sys.path
+root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+if root_path not in sys.path:
+    sys.path.append(root_path)
 
 def run_logo_cv(embeddings, labels_df, organ):
     mask = labels_df['organ'] == organ
@@ -40,9 +46,9 @@ def run_logo_cv(embeddings, labels_df, organ):
     return np.mean(fold_accs) if fold_accs else None
 
 def main():
-    binformer_path = "osdr/osdr_embeddings.pt"
-    pca_path = "osdr/encodings_pca.pt"
-    labels_path = "osdr/organ_spaceflight_batch_labels.parquet"
+    binformer_path = "data/osdr/osdr_embeddings.pt"
+    pca_path = "data/osdr/encodings_pca.pt"
+    labels_path = "data/osdr/organ_spaceflight_batch_labels.parquet"
     
     labels_df = pd.read_parquet(labels_path)
     bin_emb = torch.load(binformer_path, map_location='cpu', weights_only=True).float().numpy()

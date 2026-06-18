@@ -18,7 +18,7 @@
 import numpy as np
 import torch
 
-import numerator_and_denominator as num_and_den
+from . import numerator_and_denominator as num_and_den
 
 
 def valid_feature_type(feature_type):

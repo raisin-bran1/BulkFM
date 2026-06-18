@@ -2,6 +2,13 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
+import os
+import sys
+
+# Add project root to sys.path
+root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+if root_path not in sys.path:
+    sys.path.append(root_path)
 
 class OSDRDataset(Dataset):
     def __init__(self, features, labels):

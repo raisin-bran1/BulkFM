@@ -7,10 +7,16 @@ from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.metrics import accuracy_score
 from collections import Counter
 import os
+import sys
+
+# Add project root to sys.path
+root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+if root_path not in sys.path:
+    sys.path.append(root_path)
 
 def main():
-    embeddings_path = "osdr/osdr_embeddings_harmony.pt"
-    labels_path = "osdr/organ_spaceflight_batch_labels.parquet"
+    embeddings_path = "data/osdr/osdr_embeddings_harmony.pt"
+    labels_path = "data/osdr/organ_spaceflight_batch_labels.parquet"
     
     print(f"[INFO] Loading data for LOGO Cross-Validation...")
     embeddings = torch.load(embeddings_path, map_location='cpu', weights_only=True).float().numpy()
@@ -82,8 +88,8 @@ def main():
             })
 
     results_df = pd.DataFrame(results).sort_values(by='Mean_Accuracy', ascending=False)
-    results_df.to_csv('plots/logo_cv_results.csv', index=False)
-    print("\n[INFO] LOGO CV results saved to plots/logo_cv_results.csv")
+    results_df.to_csv('results/plots/logo_cv_results.csv', index=False)
+    print("\n[INFO] LOGO CV results saved to results/plots/logo_cv_results.csv")
 
 if __name__ == "__main__":
     main()

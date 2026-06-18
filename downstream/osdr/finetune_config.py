@@ -42,10 +42,10 @@ FINETUNE_CONFIG = {
     
     # File Paths
     'paths': {
-        'train_features': "osdr/osdr_train_features.parquet",
-        'train_labels': "osdr/osdr_train_labels.parquet",
-        'val_features': "osdr/osdr_val_features.parquet",
-        'val_labels': "osdr/osdr_val_labels.parquet",
+        'train_features': "data/osdr/osdr_train_features.parquet",
+        'train_labels': "data/osdr/osdr_train_labels.parquet",
+        'val_features': "data/osdr/osdr_val_features.parquet",
+        'val_labels': "data/osdr/osdr_val_labels.parquet",
         'base_model': "models/base_model.pt",
         'base_config': "models/config.json",
         'vocab': "models/gene_vocabulary.csv",

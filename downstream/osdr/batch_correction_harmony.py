@@ -46,5 +46,5 @@ def run_unsupervised_harmony(input_pt_path, batch_ids, output_prefix="corrected_
     return corrected_embeddings
 
 # --- Usage Example ---
-batch_list = pd.read_parquet('osdr/organ_spaceflight_batch_labels.parquet')['osd_batch'].tolist()
-corrected = run_unsupervised_harmony('osdr/osdr_embeddings_pca.pt', batch_list, output_prefix='osdr/osdr_embeddings_harmony')
+batch_list = pd.read_parquet('data/osdr/organ_spaceflight_batch_labels.parquet')['osd_batch'].tolist()
+corrected = run_unsupervised_harmony('data/osdr/osdr_embeddings_pca.pt', batch_list, output_prefix='data/osdr/osdr_embeddings_harmony')

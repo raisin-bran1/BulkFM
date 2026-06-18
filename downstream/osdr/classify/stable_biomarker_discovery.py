@@ -6,6 +6,12 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import LeaveOneGroupOut
 from scipy.stats import pearsonr
 import os
+import sys
+
+# Add project root to sys.path
+root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+if root_path not in sys.path:
+    sys.path.append(root_path)
 
 def find_stable_biomarkers(organ, embeddings, labels_df, expression_df):
     print(f"\n--- Analyzing Stable Biomarkers for: {organ} ---")
@@ -99,9 +105,9 @@ def find_stable_biomarkers(organ, embeddings, labels_df, expression_df):
         print(f"{res['gene']:<20} | {res['corr']:<8.4f} | {res['model_dir']:<6} | {res['raw_dir']:<6} | {match}")
 
 def main():
-    embeddings_path = "osdr/osdr_embeddings_harmony.pt"
-    labels_path = "osdr/organ_spaceflight_batch_labels.parquet"
-    expression_path = "osdr/osdr_processed_spaceflight.parquet"
+    embeddings_path = "data/osdr/osdr_embeddings_harmony.pt"
+    labels_path = "data/osdr/organ_spaceflight_batch_labels.parquet"
+    expression_path = "data/osdr/osdr_processed_spaceflight.parquet"
 
     
     embeddings = torch.load(embeddings_path, map_location='cpu', weights_only=True).float().numpy()

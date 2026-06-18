@@ -6,6 +6,12 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import LeaveOneGroupOut
 from scipy.stats import pearsonr
 import os
+import sys
+
+# Add project root to sys.path
+root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+if root_path not in sys.path:
+    sys.path.append(root_path)
 
 def get_stable_genes(organ, embeddings, labels_df, expression_df, gene_names):
     mask = labels_df['organ'] == organ
@@ -55,10 +61,10 @@ def get_stable_genes(organ, embeddings, labels_df, expression_df, gene_names):
     return top_dim, corrs
 
 def main():
-    bin_path = "osdr/osdr_embeddings.pt"
-    pca_path = "osdr/encodings_pca.pt"
-    labels_path = "osdr/organ_spaceflight_batch_labels.parquet"
-    expr_path = "osdr/osdr_processed_spaceflight.parquet"
+    bin_path = "data/osdr/osdr_embeddings.pt"
+    pca_path = "data/osdr/encodings_pca.pt"
+    labels_path = "data/osdr/organ_spaceflight_batch_labels.parquet"
+    expr_path = "data/osdr/osdr_processed_spaceflight.parquet"
     organ = "Thymus"
     
     labels_df = pd.read_parquet(labels_path)

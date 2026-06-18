@@ -5,7 +5,7 @@ import pandas as pd
 
 def run_classifier(embeddings, model_type, seed):
     cmd = [
-        "python", "classify/classifier.py",
+        "python", "downstream/osdr/classify/classifier.py",
         "--embeddings", embeddings,
         "--model_type", model_type,
         "--seed", str(seed),
@@ -27,15 +27,15 @@ def run_classifier(embeddings, model_type, seed):
 
 def main():
     seeds = [1, 2, 3, 4, 5]
-    configs = [
-        ("osdr/osdr_embeddings.pt", "mlp"),
-        ("osdr/osdr_embeddings.pt", "logistic"),
-        ("osdr/osdr_embeddings_harmony.pt", "logistic")
+    test_cases = [
+        ("data/osdr/osdr_embeddings.pt", "mlp"),
+        ("data/osdr/osdr_embeddings.pt", "logistic"),
+        ("data/osdr/osdr_embeddings_harmony.pt", "logistic")
     ]
     
     results = []
     
-    for emb, model in configs:
+    for emb, model in test_cases:
         emb_name = "Binformer" if "osdr_embeddings.pt" in emb else "Harmony"
         print(f"\nBenchmarking {emb_name} + {model}...")
         accs = []

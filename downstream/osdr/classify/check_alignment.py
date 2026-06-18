@@ -6,8 +6,8 @@ def check_alignment():
     print("--- Checking Alignment ---")
     
     # 1. Parquet Files
-    df_data = pd.read_parquet('osdr/osdr_processed_spaceflight.parquet')
-    df_labels = pd.read_parquet('osdr/organ_spaceflight_batch_labels.parquet')
+    df_data = pd.read_parquet('data/osdr/osdr_processed_spaceflight.parquet')
+    df_labels = pd.read_parquet('data/osdr/organ_spaceflight_batch_labels.parquet')
     
     print(f"Data Parquet samples: {len(df_data)}")
     print(f"Labels Parquet samples: {len(df_labels)}")
@@ -32,8 +32,8 @@ def check_alignment():
 
     # 2. Embeddings
     print("\n--- Checking Embeddings ---")
-    binformer_emb = torch.load('osdr/osdr_embeddings.pt', map_location='cpu', weights_only=True)
-    pca_emb = torch.load('osdr/encodings_pca.pt', map_location='cpu', weights_only=True)
+    binformer_emb = torch.load('data/osdr/osdr_embeddings.pt', map_location='cpu', weights_only=True)
+    pca_emb = torch.load('data/osdr/encodings_pca.pt', map_location='cpu', weights_only=True)
     
     print(f"Binformer embedding shape: {binformer_emb.shape}")
     print(f"PCA embedding shape: {pca_emb.shape}")
