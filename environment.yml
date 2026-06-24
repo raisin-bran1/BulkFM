@@ -1,19 +1,23 @@
-# Binformer Environment Configuration
-#
-# Create with:
-#   conda env create -f environment.yml
-#   conda activate nasa
-#
-# Savio setup:
-#   module load anaconda3
-#   source activate nasa
+# Environment Configuration Steps
+
+# mamba create -n biomed-fm python=3.11 -y
+# conda activate nasa
+
+# mamba install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia -y
+
+# mamba env update --file environment.yml --prune
+
+# For archs4 preprocessing, archs4py is only available on pip so make a separate environment
+# mamba create -n archs4 python=3.11
+# conda activate archs4
+# pip install archs4py
 
 name: nasa
 channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.12
+  - python=3.11
   - pip
   - numpy
   - pandas
@@ -21,8 +25,7 @@ dependencies:
   - matplotlib
   - scikit-learn
   - tqdm
-  - pip:
-    - wandb
+  - wandb
+  - h5py
 
-# INSTALL WITH PIP AFTER ABOVE INSTALLATIONS
-# pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu121 torch==2.5.1+cu121
+
