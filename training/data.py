@@ -29,81 +29,70 @@ def _parquet_numeric_gene_columns(schema: pa.Schema) -> list:
     return out
 
 class ExpressionMLMDataset(Dataset):
-    """Expression dataset with MLM-style masking."""
-
-    def __init__(self, expr_array, mask_ratio=0.15, mask_token=-10, 
-                 mask_token_prob=0.8, random_token_prob=0.1, num_bins=50):
+    def __init__(self, expr_array, mask_ratio=0.15, mask_token=-10,
+                 mask_token_prob=0.8, random_token_prob=0.1, num_bins=50,
+                 expression_embedding='binned', masking_strategy='mask_token'):
         self.X = expr_array.astype(np.float32)
         self.mask_ratio = mask_ratio
         self.mask_token = mask_token
         self.mask_token_prob = mask_token_prob
         self.random_token_prob = random_token_prob
+        self.expression_embedding = expression_embedding
+        self.masking_strategy = masking_strategy
 
-        # Precompute bins (quantiles per sample)
         B, G = self.X.shape
-        print(f"[DATA] Pre-calculating quantile bins for {B} samples...")
-        self.target_bins = np.zeros((B, G), dtype=np.int64)
-        
-        # Vectorized ranking across samples
-        is_nonzero = (self.X > 0)
-        num_nonzero = is_nonzero.sum(axis=1, keepdims=True)
-        
-        # Assign rank to each nonzero value per sample
-        # We handle zero values by setting them to a large negative number
-        ranked_x = self.X.copy()
-        ranked_x[~is_nonzero] = -1e9
-        
-        # Sort twice to get the rank in [0, G-1]
-        ranks = np.argsort(np.argsort(ranked_x, axis=1), axis=1)
-        
-        # Number of zeros/masks that come before nonzero values in the rank
-        num_zeros = (self.X <= 0).sum(axis=1, keepdims=True)
-        
-        # Map nonzero ranks to [1, num_bins]
-        shifted_ranks = (ranks - num_zeros).clip(min=0)
-        q_bins = (shifted_ranks * num_bins // num_nonzero.clip(min=1)) + 1
-        
-        # Final bins: 0 for zero, 1..num_bins for expression quantiles
-        self.target_bins = np.where(is_nonzero, q_bins, 0)
+        if expression_embedding == 'binned':
+            print(f"[DATA] Pre-calculating quantile bins for {B} samples...")
+            is_nonzero = self.X > 0
+            num_nonzero = is_nonzero.sum(axis=1, keepdims=True)
+            ranked_x = self.X.copy()
+            ranked_x[~is_nonzero] = -1e9
+            ranks = np.argsort(np.argsort(ranked_x, axis=1), axis=1)
+            num_zeros = (self.X <= 0).sum(axis=1, keepdims=True)
+            shifted_ranks = (ranks - num_zeros).clip(min=0)
+            q_bins = (shifted_ranks * num_bins // num_nonzero.clip(min=1)) + 1
+            self.target_bins = np.where(is_nonzero, q_bins, 0).astype(np.int64)
+        else:
+            self.target_bins = None
 
     def __len__(self):
         return len(self.X)
 
     def __getitem__(self, idx):
         x_orig = self.X[idx].copy()
-        y_bins = self.target_bins[idx].copy()
         num_genes = x_orig.shape[0]
 
-        # Select genes for masking
         num_mask = max(1, int(num_genes * self.mask_ratio))
         mask_indices = np.random.choice(num_genes, num_mask, replace=False)
 
-        x_masked = x_orig.copy()
-        nonzero_vals = x_orig[x_orig > 0]
-        probs = np.random.random(num_mask)
-        
-        # 1. Mask token replacements
-        mask_token_mask = probs < self.mask_token_prob
-        x_masked[mask_indices[mask_token_mask]] = self.mask_token
-        
-        # 2. Random value replacements
-        random_token_mask = (probs >= self.mask_token_prob) & (probs < (self.mask_token_prob + self.random_token_prob))
-        num_random = np.sum(random_token_mask)
-        if num_random > 0:
-            if len(nonzero_vals) > 0:
-                x_masked[mask_indices[random_token_mask]] = np.random.choice(nonzero_vals, size=num_random)
-            else:
-                x_masked[mask_indices[random_token_mask]] = np.random.uniform(0, 10, size=num_random)
+        if self.masking_strategy == 'mask_token':
+            x_masked = x_orig.copy()
+            nonzero_vals = x_orig[x_orig > 0]
+            probs = np.random.random(num_mask)
+            mask_token_mask = probs < self.mask_token_prob
+            x_masked[mask_indices[mask_token_mask]] = self.mask_token
+            random_token_mask = (probs >= self.mask_token_prob) & \
+                (probs < (self.mask_token_prob + self.random_token_prob))
+            num_random = np.sum(random_token_mask)
+            if num_random > 0:
+                if len(nonzero_vals) > 0:
+                    x_masked[mask_indices[random_token_mask]] = \
+                        np.random.choice(nonzero_vals, size=num_random)
+                else:
+                    x_masked[mask_indices[random_token_mask]] = \
+                        np.random.uniform(0, 10, size=num_random)
+        else:
+            x_masked = x_orig.copy()
+
+        if self.expression_embedding == 'binned':
+            target = self.target_bins[idx].copy()
+            target = torch.tensor(target, dtype=torch.long)
+        else:
+            target = torch.tensor(x_orig, dtype=torch.float32)
 
         return (
             torch.tensor(x_masked, dtype=torch.float32),
-            torch.tensor(y_bins, dtype=torch.long),
-            torch.tensor(mask_indices, dtype=torch.long),
-        )
-
-        return (
-            torch.tensor(x_masked, dtype=torch.float32),
-            torch.tensor(x, dtype=torch.float32),
+            target,
             torch.tensor(mask_indices, dtype=torch.long),
         )
 

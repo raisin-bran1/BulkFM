@@ -31,7 +31,7 @@ import pandas as pd
 from training.config import CONFIG, USE_SMOKE
 from training.data import get_sample_indices, load_batch_data, ExpressionMLMDataset
 from training.utils import _coerce_config_types, build_run_tag
-from models.binformer import Binformer
+from models.generalized_binformer import GeneralizedBinformer, GeneralizedBinformerConfig
 
 # Force unbuffered output for DDP visibility
 try:
@@ -233,6 +233,8 @@ def main():
         'mask_token_prob': CONFIG.get('mask_token_prob', 0.8),
         'random_token_prob': CONFIG.get('random_token_prob', 0.1),
         'num_bins': CONFIG['num_bins'],
+        'expression_embedding': CONFIG['expression_embedding'],
+        'masking_strategy': CONFIG['masking_strategy'],
     }
 
     train_ds = ExpressionMLMDataset(X_train, **dataset_kwargs)
@@ -274,19 +276,25 @@ def main():
     # MODEL
     # ─────────────────────────────────────────────────────────
     if is_main:
-        logger.info("[MODEL] Building Binformer...")
+        logger.info("[MODEL] Building GeneralizedBinformer...")
 
-    model = Binformer(
-        num_genes=num_genes,
+    model_cfg = GeneralizedBinformerConfig(
         hidden_dim=CONFIG['hidden_dim'],
-        n_heads=CONFIG['num_heads'],
-        n_layers=CONFIG['num_layers'],
         ffn_dim=CONFIG['ffn_dim'],
-        num_bins=CONFIG['num_bins'],
-        mask_token_id=CONFIG['mask_token'],
+        num_heads=CONFIG['num_heads'],
+        num_layers=CONFIG['num_layers'],
         feature_type=CONFIG['feature_type'],
         compute_type=CONFIG['compute_type'],
-    ).to(device)
+        expression_embedding=CONFIG['expression_embedding'],
+        num_bins=CONFIG['num_bins'],
+        continuous_loss=CONFIG.get('continuous_loss', 'mse'),
+        mask_ratio=CONFIG['mask_ratio'],
+        dynamic_mask_range=CONFIG.get('dynamic_mask_range'),
+        mask_token_id=CONFIG['mask_token'],
+        masking_strategy=CONFIG['masking_strategy'],
+    )
+
+    model = GeneralizedBinformer(num_genes=num_genes, cfg=model_cfg).to(device)
 
     model = DDP(model, device_ids=[local_rank], output_device=local_rank,
                 find_unused_parameters=False)
@@ -334,39 +342,55 @@ def main():
         with open(global_best_path) as f:
             global_best_val_loss = json.load(f).get('val_loss', float('inf'))
 
+    is_binned = CONFIG['expression_embedding'] == 'binned'
     num_bins = CONFIG['num_bins']
+
+    if not is_binned and CONFIG.get('continuous_loss') == 'poisson':
+        from models.generalized_binformer import PoissonNLLLogSpace
+        cont_loss_fn = PoissonNLLLogSpace()
+    else:
+        cont_loss_fn = F.mse_loss
 
     for epoch in range(CONFIG['epochs']):
         epoch_start = time.time()
         train_sampler.set_epoch(epoch)
 
-        # --- Train ---
         model.train()
         running_loss = 0.0
         num_batches = 0
 
-        for batch_idx, (x_masked, target_bins, mask_idx) in enumerate(train_loader):
-            x_masked = x_masked.to(device)
-            target_bins = target_bins.to(device)
-            mask_idx = mask_idx.to(device) 
-            
-            logits = model(x_masked) # [B, G, num_bins + 1]
-            
-            # Vectorized loss calculation
-            B, G, C = logits.shape
+        for batch_idx, (x_input, targets, mask_idx) in enumerate(train_loader):
+            x_input = x_input.to(device)
+            mask_idx = mask_idx.to(device)
+
+            out = model(x_input, mask_idx=mask_idx)
+
+            B = x_input.shape[0]
             num_mask = mask_idx.shape[1]
-            batch_indices = torch.arange(B, device=device).unsqueeze(1).expand(-1, num_mask)
-            
-            # Gather logits and targets at masked positions
-            masked_logits = logits[batch_indices, mask_idx] # [B, num_mask, C]
-            masked_targets = target_bins[batch_indices, mask_idx] # [B, num_mask]
-            
-            loss = F.cross_entropy(masked_logits.reshape(-1, C), masked_targets.reshape(-1))
-            
+            batch_idx_vec = torch.arange(B, device=device).unsqueeze(1).expand(-1, num_mask)
+
+            if is_binned:
+                targets = targets.to(device)
+                C = out.shape[-1]
+                masked_out = out[batch_idx_vec, mask_idx]
+                masked_targets = targets[batch_idx_vec, mask_idx]
+                loss = F.cross_entropy(masked_out.reshape(-1, C), masked_targets.reshape(-1))
+            else:
+                targets = targets.to(device)
+                if out.dim() == 3:
+                    masked_out = out[batch_idx_vec, mask_idx].squeeze(-1)
+                else:
+                    masked_out = out[batch_idx_vec, mask_idx]
+                masked_targets = targets[batch_idx_vec, mask_idx]
+                if CONFIG.get('continuous_loss') == 'poisson':
+                    loss = cont_loss_fn(masked_out, masked_targets.log1p()).mean()
+                else:
+                    loss = cont_loss_fn(masked_out, masked_targets)
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            
+
             running_loss += loss.item()
             num_batches += 1
 
@@ -376,78 +400,89 @@ def main():
 
         epoch_train_loss = running_loss / max(1, num_batches)
 
-        # --- Validate ---
         model.eval()
         val_loss = 0.0
         val_acc_sum = 0.0
         val_top3_sum = 0.0
+        val_r2_sum = 0.0
         val_batches = 0
-        
-        # Track bin distributions
-        bin_counts = torch.zeros(num_bins + 2, device=device)
-        true_bin_counts = torch.zeros(num_bins + 2, device=device)
+
+        bin_counts = torch.zeros(num_bins + 2, device=device) if is_binned else None
+        true_bin_counts = torch.zeros(num_bins + 2, device=device) if is_binned else None
 
         with torch.no_grad():
-            for x_masked, target_bins, mask_idx in val_loader:
-                x_masked = x_masked.to(device)
-                target_bins = target_bins.to(device)
+            for x_input, targets, mask_idx in val_loader:
+                x_input = x_input.to(device)
+                targets = targets.to(device)
                 mask_idx = mask_idx.to(device)
-                
-                logits = model(x_masked)
-                
-                B, G, C = logits.shape
+
+                out = model(x_input, mask_idx=mask_idx)
+
+                B = x_input.shape[0]
                 num_mask = mask_idx.shape[1]
-                batch_indices = torch.arange(B, device=device).unsqueeze(1).expand(-1, num_mask)
-                
-                masked_logits = logits[batch_indices, mask_idx] 
-                masked_targets = target_bins[batch_indices, mask_idx]
-                
-                # Loss
-                v_loss = F.cross_entropy(masked_logits.reshape(-1, C), masked_targets.reshape(-1))
-                val_loss += v_loss.item()
-                
-                # Accuracy
-                preds = masked_logits.argmax(dim=-1)
-                val_acc_sum += (preds == masked_targets).float().mean().item()
-                
-                # Top-3 Accuracy
-                _, top3 = masked_logits.topk(min(3, C), dim=-1)
-                correct_top3 = top3.eq(masked_targets.unsqueeze(-1).expand_as(top3))
-                val_top3_sum += correct_top3.any(dim=-1).float().mean().item()
-                
-                # Distribution (Predicted)
-                ones = torch.ones_like(preds, dtype=torch.float32)
-                bin_counts.scatter_add_(0, preds.reshape(-1), ones.reshape(-1))
-                
-                # Distribution (Actual)
-                ones_true = torch.ones_like(masked_targets, dtype=torch.float32)
-                true_bin_counts.scatter_add_(0, masked_targets.reshape(-1), ones_true.reshape(-1))
-                
+                batch_idx_vec = torch.arange(B, device=device).unsqueeze(1).expand(-1, num_mask)
+
+                if is_binned:
+                    C = out.shape[-1]
+                    masked_out = out[batch_idx_vec, mask_idx]
+                    masked_targets = targets[batch_idx_vec, mask_idx]
+
+                    v_loss = F.cross_entropy(masked_out.reshape(-1, C), masked_targets.reshape(-1))
+                    val_loss += v_loss.item()
+
+                    preds = masked_out.argmax(dim=-1)
+                    val_acc_sum += (preds == masked_targets).float().mean().item()
+
+                    _, top3 = masked_out.topk(min(3, C), dim=-1)
+                    correct_top3 = top3.eq(masked_targets.unsqueeze(-1).expand_as(top3))
+                    val_top3_sum += correct_top3.any(dim=-1).float().mean().item()
+
+                    ones = torch.ones_like(preds, dtype=torch.float32)
+                    bin_counts.scatter_add_(0, preds.reshape(-1), ones.reshape(-1))
+                    true_ones = torch.ones_like(masked_targets, dtype=torch.float32)
+                    true_bin_counts.scatter_add_(0, masked_targets.reshape(-1), true_ones.reshape(-1))
+                else:
+                    if out.dim() == 3:
+                        masked_out = out[batch_idx_vec, mask_idx].squeeze(-1)
+                    else:
+                        masked_out = out[batch_idx_vec, mask_idx]
+                    masked_targets = targets[batch_idx_vec, mask_idx]
+
+                    if CONFIG.get('continuous_loss') == 'poisson':
+                        v_loss = cont_loss_fn(masked_out, masked_targets.log1p()).mean()
+                    else:
+                        v_loss = F.mse_loss(masked_out, masked_targets)
+                    val_loss += v_loss.item()
+
+                    ss_res = ((masked_targets - masked_out) ** 2).sum()
+                    ss_tot = ((masked_targets - masked_targets.mean()) ** 2).sum()
+                    val_r2_sum += (1 - ss_res / ss_tot.clamp(min=1e-8)).item()
+
                 val_batches += 1
 
-        # Sync validation across ranks
         vl = torch.tensor(val_loss, device=device); dist.all_reduce(vl, op=dist.ReduceOp.SUM)
-        va = torch.tensor(val_acc_sum, device=device); dist.all_reduce(va, op=dist.ReduceOp.SUM)
-        vt3 = torch.tensor(val_top3_sum, device=device); dist.all_reduce(vt3, op=dist.ReduceOp.SUM)
         vb = torch.tensor(float(val_batches), device=device); dist.all_reduce(vb, op=dist.ReduceOp.SUM)
-        dist.all_reduce(bin_counts, op=dist.ReduceOp.SUM)
-        dist.all_reduce(true_bin_counts, op=dist.ReduceOp.SUM)
-        
         epoch_val_loss = (vl / vb.clamp(min=1)).item()
-        epoch_val_acc = (va / vb.clamp(min=1)).item()
-        epoch_val_top3 = (vt3 / vb.clamp(min=1)).item()
-        
-        # Compute distribution percentages
-        total_preds = bin_counts.sum()
-        bin_dist = (bin_counts / total_preds.clamp(min=1)) * 100
-        
-        total_true = true_bin_counts.sum()
-        true_dist = (true_bin_counts / total_true.clamp(min=1)) * 100
+
+        if is_binned:
+            va = torch.tensor(val_acc_sum, device=device); dist.all_reduce(va, op=dist.ReduceOp.SUM)
+            vt3 = torch.tensor(val_top3_sum, device=device); dist.all_reduce(vt3, op=dist.ReduceOp.SUM)
+            dist.all_reduce(bin_counts, op=dist.ReduceOp.SUM)
+            dist.all_reduce(true_bin_counts, op=dist.ReduceOp.SUM)
+            epoch_val_acc = (va / vb.clamp(min=1)).item()
+            epoch_val_top3 = (vt3 / vb.clamp(min=1)).item()
+            total_preds = bin_counts.sum()
+            bin_dist = (bin_counts / total_preds.clamp(min=1)) * 100
+            total_true = true_bin_counts.sum()
+            true_dist = (true_bin_counts / total_true.clamp(min=1)) * 100
+        else:
+            vr2 = torch.tensor(val_r2_sum, device=device); dist.all_reduce(vr2, op=dist.ReduceOp.SUM)
+            epoch_val_acc = (vr2 / vb.clamp(min=1)).item()
+            epoch_val_top3 = 0.0
 
         train_losses.append(epoch_train_loss)
         val_losses.append(epoch_val_loss)
-        
-        # Step schedulers
+
         if epoch < warmup_epochs:
             warmup_scheduler.step()
         else:
@@ -456,27 +491,30 @@ def main():
         epoch_time = time.time() - epoch_start
 
         if is_main:
-            logger.info(f"Epoch {epoch+1} Results: Train Loss={epoch_train_loss:.6f}, Val Loss={epoch_val_loss:.6f}, Val Acc={epoch_val_acc:.6f}, Top3={epoch_val_top3:.6f}, Time={epoch_time:.1f}s")
-            
-            # Print key distribution comparison
-            pred_str = f"Pred: B0:{bin_dist[0]:.1f}%, B1:{bin_dist[1]:.1f}%, B25:{bin_dist[25]:.1f}%, B50:{bin_dist[50]:.1f}%"
-            true_str = f"True: B0:{true_dist[0]:.1f}%, B1:{true_dist[1]:.1f}%, B25:{true_dist[25]:.1f}%, B50:{true_dist[50]:.1f}%"
-            logger.info(f"  {pred_str}")
-            logger.info(f"  {true_str}")
+            if is_binned:
+                logger.info(f"Epoch {epoch+1} | Train {epoch_train_loss:.6f} | Val {epoch_val_loss:.6f} | Acc {epoch_val_acc:.4f} | Top3 {epoch_val_top3:.4f} | {epoch_time:.1f}s")
+                pred_str = f"Pred: B0:{bin_dist[0]:.1f}% B1:{bin_dist[1]:.1f}% B25:{bin_dist[25]:.1f}% B50:{bin_dist[50]:.1f}%"
+                true_str = f"True: B0:{true_dist[0]:.1f}% B1:{true_dist[1]:.1f}% B25:{true_dist[25]:.1f}% B50:{true_dist[50]:.1f}%"
+                logger.info(f"  {pred_str}")
+                logger.info(f"  {true_str}")
+            else:
+                logger.info(f"Epoch {epoch+1} | Train {epoch_train_loss:.6f} | Val {epoch_val_loss:.6f} | R2 {epoch_val_acc:.4f} | {epoch_time:.1f}s")
 
             if HAS_WANDB:
                 log_dict = {
                     'epoch': epoch + 1,
                     'train_loss': epoch_train_loss,
                     'val_loss': epoch_val_loss,
-                    'val_acc': epoch_val_acc,
-                    'val_top3': epoch_val_top3,
                     'lr': optimizer.param_groups[0]['lr'],
                 }
-                # Log full distributions to W&B
-                for b_idx in range(num_bins + 1):
-                    log_dict[f'bin_dist/pred_B{b_idx}'] = bin_dist[b_idx].item()
-                    log_dict[f'bin_dist/true_B{b_idx}'] = true_dist[b_idx].item()
+                if is_binned:
+                    log_dict['val_acc'] = epoch_val_acc
+                    log_dict['val_top3'] = epoch_val_top3
+                    for b_idx in range(num_bins + 1):
+                        log_dict[f'bin_dist/pred_B{b_idx}'] = bin_dist[b_idx].item()
+                        log_dict[f'bin_dist/true_B{b_idx}'] = true_dist[b_idx].item()
+                else:
+                    log_dict['val_r2'] = epoch_val_acc
                 wandb.log(log_dict)
 
             checkpoint_payload = {
@@ -490,29 +528,26 @@ def main():
                 'config': CONFIG,
             }
 
-            if is_main:
-                torch.save(checkpoint_payload, ckpt_dir / f"epoch_{epoch:02d}.pt")
+            torch.save(checkpoint_payload, ckpt_dir / f"epoch_{epoch:02d}.pt")
 
             if epoch_val_loss < best_val_loss:
                 best_val_loss = epoch_val_loss
                 patience_counter = 0
-                
-                if is_main:
-                    torch.save(checkpoint_payload, ckpt_dir / "best_model.pt")
-                    logger.info(f"  ✓ New best (run)! Saved best_model.pt")
+                torch.save(checkpoint_payload, ckpt_dir / "best_model.pt")
+                logger.info(f"  ✓ New best! Saved best_model.pt")
 
-                    if epoch_val_loss < global_best_val_loss:
-                        global_best_val_loss = epoch_val_loss
-                        torch.save(checkpoint_payload, ckpt_base / "best_model.pt")
-                        with open(global_best_path, 'w') as f:
-                            json.dump({'val_loss': global_best_val_loss, 'run_id': run_id, 'timestamp': run_timestamp}, f, indent=2)
-                        logger.info(f"  ★ New global best! {epoch_val_loss:.6f}")
+                if epoch_val_loss < global_best_val_loss:
+                    global_best_val_loss = epoch_val_loss
+                    torch.save(checkpoint_payload, ckpt_base / "best_model.pt")
+                    with open(global_best_path, 'w') as f:
+                        json.dump({'val_loss': global_best_val_loss, 'run_id': run_id, 'timestamp': run_timestamp}, f, indent=2)
+                    logger.info(f"  ★ New global best! {epoch_val_loss:.6f}")
             else:
                 if CONFIG['early_stopping']:
                     patience_counter += 1
                     if patience_counter >= CONFIG['patience']:
                         if is_main:
-                            logger.info(f"  ⚠ Early stopping triggered at epoch {epoch+1}")
+                            logger.info(f"  ⚠ Early stopping at epoch {epoch+1}")
                         break
 
     if is_main:
@@ -528,11 +563,11 @@ def main():
             plt.plot(train_losses, label='Train Loss')
             plt.plot(val_losses, label='Val Loss')
             plt.xlabel("Epoch")
-            plt.ylabel("Cross-Entropy Loss")
+            plt.ylabel("Loss")
             plt.legend()
             plt.savefig(ckpt_dir / "loss_plot.png")
             plt.close()
-        
+
         logger.info("=" * 70)
         logger.info(f"Training complete. Best Val Loss: {best_val_loss:.6f}")
         logger.info(f"Checkpoints saved to {ckpt_dir}")
