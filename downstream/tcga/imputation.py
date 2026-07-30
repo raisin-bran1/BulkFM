@@ -1,21 +1,29 @@
 """
-Imputation benchmark: mask genes, predict their expression.
+Imputation benchmark: predict expression from embeddings via Ridge regression.
+
+Runs on every .pt embedding file in EMBEDDINGS_DIR.
 
 Usage:
-  python downstream/tcga/imputation.py --seed 42
+  python downstream/tcga/imputation.py
+  python downstream/tcga/imputation.py --embedding_dir path/to/embeddings
 """
 
 import argparse
+import glob
+import os
 import warnings
 
 import numpy as np
 import pandas as pd
-from sklearn.decomposition import PCA
+import torch
+from sklearn.linear_model import Ridge
 from sklearn.model_selection import GroupShuffleSplit
+from sklearn.preprocessing import StandardScaler
 from scipy.stats import pearsonr
 
 TCGA_PARQUET = "/media/volume/bulkrnadata/tcgadata/tcga_processed.parquet"
 LABELS_PATH = "embeddings/tcga_labels.parquet"
+EMBEDDINGS_DIR = "embeddings"
 
 
 def load_raw_data(parquet_path):
@@ -27,94 +35,64 @@ def load_raw_data(parquet_path):
     return X, df, gene_cols
 
 
-def mask_expression(X, mask_ratio=0.3, seed=42):
-    rng = np.random.RandomState(seed)
-    B, G = X.shape
-    mask = rng.rand(B, G) < mask_ratio
-    X_masked = X.copy()
-    X_masked[mask] = 0.0
-    return X_masked, mask
+def load_embeddings(path):
+    return torch.load(path, map_location="cpu", weights_only=True).float().numpy()
 
 
-def global_pearson(true, pred, mask):
-    """Single Pearson correlation over all masked entries (flattened)."""
-    t = true[mask]
-    p = pred[mask]
+def global_pearson(true, pred):
+    t = true.ravel()
+    p = pred.ravel()
     if np.std(t) == 0 or np.std(p) == 0:
         return 0.0
     r, _ = pearsonr(t, p)
     return r if not np.isnan(r) else 0.0
 
 
-def per_gene_pearson(true, pred, mask):
-    """Average per-gene Pearson (each gene weighted equally)."""
-    G = true.shape[1]
-    r_values = []
-    for g in range(G):
-        masked = mask[:, g]
-        if masked.sum() < 3:
-            continue
-        t = true[masked, g]
-        p = pred[masked, g]
-        if np.std(t) == 0 or np.std(p) == 0:
-            continue
-        r, _ = pearsonr(t, p)
-        if not np.isnan(r):
-            r_values.append(r)
-    return np.mean(r_values) if r_values else 0.0
+def per_gene_pearson(true, pred):
+    t = torch.from_numpy(true)
+    p = torch.from_numpy(pred)
+    t_c = t - t.mean(dim=0, keepdim=True)
+    p_c = p - p.mean(dim=0, keepdim=True)
+    r_num = (t_c * p_c).sum(dim=0)
+    r_den = torch.sqrt((t_c ** 2).sum(dim=0) * (p_c ** 2).sum(dim=0))
+    r = r_num / r_den.clamp(min=1e-8)
+    return r.nanmean().item()
 
 
-def per_sample_pearson(true, pred, mask):
-    """Average per-sample Pearson (each sample weighted equally)."""
-    B = true.shape[0]
-    r_values = []
-    for b in range(B):
-        masked = mask[b, :]
-        if masked.sum() < 3:
-            continue
-        t = true[b, masked]
-        p = pred[b, masked]
-        if np.std(t) == 0 or np.std(p) == 0:
-            continue
-        r, _ = pearsonr(t, p)
-        if not np.isnan(r):
-            r_values.append(r)
-    return np.mean(r_values) if r_values else 0.0
+def per_sample_pearson(true, pred):
+    t = torch.from_numpy(true)
+    p = torch.from_numpy(pred)
+    t_c = t - t.mean(dim=1, keepdim=True)
+    p_c = p - p.mean(dim=1, keepdim=True)
+    r_num = (t_c * p_c).sum(dim=1)
+    r_den = torch.sqrt((t_c ** 2).sum(dim=1) * (p_c ** 2).sum(dim=1))
+    r = r_num / r_den.clamp(min=1e-8)
+    return r.nanmean().item()
 
 
-def mse_masked(true, pred, mask):
-    return float(np.mean((true[mask] - pred[mask]) ** 2))
+class EmbeddingImputer:
+    def __init__(self, alpha=1.0):
+        self.alpha = alpha
+        self.ridge = None
+        self.scaler = StandardScaler()
 
+    def fit(self, X_train, embeddings_train):
+        self.ridge = Ridge(alpha=self.alpha, random_state=42, solver="svd")
+        emb_scaled = self.scaler.fit_transform(embeddings_train)
+        self.ridge.fit(emb_scaled, X_train)
 
-class MeanBaseline:
-    def __init__(self):
-        self.gene_means = None
-
-    def fit(self, X_train):
-        self.gene_means = X_train.mean(axis=0)
-
-    def predict(self, X_masked):
-        return np.broadcast_to(self.gene_means, X_masked.shape)
-
-
-class PCABaseline:
-    def __init__(self, n_components=256):
-        self.n_components = n_components
-        self.pca = PCA(n_components=n_components, random_state=42)
-
-    def fit(self, X_train):
-        self.pca.fit(X_train)
-
-    def predict(self, X_masked):
-        return self.pca.inverse_transform(self.pca.transform(X_masked))
+    def predict(self, embeddings_test):
+        emb_scaled = self.scaler.transform(embeddings_test)
+        return self.ridge.predict(emb_scaled)
 
 
 def main():
     warnings.filterwarnings("ignore", message="An input array is constant")
+    warnings.filterwarnings("ignore", message="Ill-conditioned matrix")
+    warnings.filterwarnings("ignore", message="LinAlgWarning")
     parser = argparse.ArgumentParser(description="TCGA imputation benchmark")
-    parser.add_argument("--mask_ratio", type=float, default=0.3)
+    parser.add_argument("--embedding_dir", type=str, default=EMBEDDINGS_DIR)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--no_baselines", action="store_true")
     args = parser.parse_args()
 
     print("=== Loading TCGA data ===")
@@ -129,40 +107,52 @@ def main():
     X_train, X_test = X[train_idx], X[test_idx]
     print(f"  Train: {len(X_train)}, Test: {len(X_test)}")
 
-    print(f"\n=== Masking {args.mask_ratio*100:.0f}% of genes per sample ===")
-    X_masked, mask = mask_expression(X_test, mask_ratio=args.mask_ratio, seed=args.seed)
-    print(f"  Masked: {mask.mean()*100:.1f}% of entries ({mask.sum():,} positions)")
-    X_true = X_test
-
     results = []
 
-    if not args.no_baselines:
-        for name, bline in [("Mean", MeanBaseline()), ("PCA-256", PCABaseline(256))]:
-            print(f"\n--- {name} ---")
-            bline.fit(X_train)
-            X_pred = bline.predict(X_masked)
-            results.append({
-                "Method": name,
-                "Global PCC": global_pearson(X_true, X_pred, mask),
-                "Per-gene PCC": per_gene_pearson(X_true, X_pred, mask),
-                "Per-sample PCC": per_sample_pearson(X_true, X_pred, mask),
-                "MSE": mse_masked(X_true, X_pred, mask),
-            })
-            r = results[-1]
-            print(f"  Global PCC:     {r['Global PCC']:.4f}  (flattened, single r)")
-            print(f"  Per-gene PCC:   {r['Per-gene PCC']:.4f}  (avg over 18,819 genes)")
-            print(f"  Per-sample PCC: {r['Per-sample PCC']:.4f}  (avg over {len(X_test)} samples)")
-            print(f"  MSE:            {r['MSE']:.6f}")
+    # ── Embedding-based imputation ──
+    emb_paths = sorted(glob.glob(os.path.join(args.embedding_dir, "*.pt")))
+    emb_paths = [p for p in emb_paths if not os.path.basename(p).startswith("tcga_labels")]
 
+    for emb_path in emb_paths:
+        name = os.path.splitext(os.path.basename(emb_path))[0]
+        print(f"\n--- {name} (Ridge regression) ---")
+
+        embeddings = load_embeddings(emb_path)
+        assert len(embeddings) == len(X), f"Shape mismatch: {len(embeddings)} vs {len(X)}"
+
+        emb_train = embeddings[train_idx]
+        emb_test = embeddings[test_idx]
+
+        imputer = EmbeddingImputer(alpha=1.0)
+        imputer.fit(X_train, emb_train)
+        X_pred = imputer.predict(emb_test)
+
+        results.append({
+            "Method": f"{name}",
+            "Global PCC": global_pearson(X_test, X_pred),
+            "Per-gene PCC": per_gene_pearson(X_test, X_pred),
+            "Per-sample PCC": per_sample_pearson(X_test, X_pred),
+            "MSE": float(np.mean((X_test - X_pred) ** 2)),
+        })
+        r = results[-1]
+        print(f"  Global PCC:     {r['Global PCC']:.4f}")
+        print(f"  Per-gene PCC:   {r['Per-gene PCC']:.4f}")
+        print(f"  Per-sample PCC: {r['Per-sample PCC']:.4f}")
+        print(f"  MSE:            {r['MSE']:.6f}")
+
+    # ── Summary ──
+    os.makedirs("results", exist_ok=True)
+    results_df = pd.DataFrame(results)
+    results_df.to_csv("results/imputation_results.csv", index=False)
     print(f"\n{'='*72}")
     print("IMPUTATION BENCHMARK SUMMARY")
     print(f"{'='*72}")
-    cols = ["Method", "Global PCC", "Per-gene PCC", "Per-sample PCC", "MSE"]
-    print(f"{'Method':<12} {'Global PCC':<12} {'Gene PCC':<12} {'Sample PCC':<12} {'MSE':<10}")
-    print("-" * 58)
+    print(f"{'Method':<15} {'Global PCC':<12} {'Gene PCC':<12} {'Sample PCC':<12} {'MSE':<10}")
+    print("-" * 61)
     for r in results:
-        print(f"{r['Method']:<12} {r['Global PCC']:<12.4f} {r['Per-gene PCC']:<12.4f} {r['Per-sample PCC']:<12.4f} {r['MSE']:<10.6f}")
+        print(f"{r['Method']:<15} {r['Global PCC']:<12.4f} {r['Per-gene PCC']:<12.4f} {r['Per-sample PCC']:<12.4f} {r['MSE']:<10.6f}")
     print(f"{'='*72}")
+    print(f"Results saved to results/imputation_results.csv")
 
 
 if __name__ == "__main__":

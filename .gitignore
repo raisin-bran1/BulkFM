@@ -1,2 +1,5 @@
 *.parquet
 *.pt
+.vscode
+checkpoints
+tcga_analysis_demo.ipynb

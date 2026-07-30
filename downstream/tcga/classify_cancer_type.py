@@ -1,19 +1,16 @@
 """
 Benchmark cancer type classification using logistic regression.
 
-Evaluates one or more embedding representations on TCGA cancer type
-classification. For each embedding set, trains a multi-class logistic
-regression classifier and reports accuracy.
+Runs on every .pt embedding file in EMBEDDINGS_DIR plus raw TCGA expression.
 
 Usage:
-  python downstream/tcga/classify_cancer_type.py \\
-      --embeddings results/embeddings/tcga_pca256.pt \\
-      --raw \\
-      --embedding_names pca256 raw
+  python downstream/tcga/classify_cancer_type.py
+  python downstream/tcga/classify_cancer_type.py --embedding_dir path/to/embeddings
 """
 
 import argparse
 import os
+import glob
 import sys
 
 import numpy as np
@@ -26,11 +23,10 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 TCGA_PARQUET = "/media/volume/bulkrnadata/tcgadata/tcga_processed.parquet"
 LABELS_PATH = "embeddings/tcga_labels.parquet"
-EMBEDDINGS_DIR = "results/embeddings"
+EMBEDDINGS_DIR = "embeddings"
 
 
 def load_raw_data(parquet_path):
-    """Load raw gene expression from TCGA parquet."""
     df = pd.read_parquet(parquet_path)
     meta_cols = [c for c in df.columns if not isinstance(df[c].dtype, pd.Float32Dtype)
                  and df[c].dtype != np.float32]
@@ -40,14 +36,10 @@ def load_raw_data(parquet_path):
 
 
 def load_embeddings(path):
-    """Load embeddings from a .pt file."""
     return torch.load(path, map_location="cpu", weights_only=True).float().numpy()
 
 
 def evaluate_embeddings(X, y, groups, num_classes, label_encoder, seed=42):
-    """Train logistic regression and evaluate with group-stratified split."""
-    rng = np.random.RandomState(seed)
-
     gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=seed)
     train_idx, test_idx = next(gss.split(X, y, groups))
 
@@ -80,38 +72,19 @@ def main():
     parser = argparse.ArgumentParser(
         description="Benchmark TCGA cancer type classification"
     )
-    parser.add_argument(
-        "--embeddings", nargs="*", default=[],
-        help="Paths to embedding .pt files"
-    )
-    parser.add_argument(
-        "--raw", action="store_true",
-        help="Include raw gene expression from TCGA parquet"
-    )
-    parser.add_argument(
-        "--embedding_names", nargs="*", default=[],
-        help="Display names for embeddings (must match --embeddings order)"
-    )
-    parser.add_argument(
-        "--labels", type=str, default=LABELS_PATH,
-        help="Path to labels parquet"
-    )
-    parser.add_argument(
-        "--seed", type=int, default=42,
-    )
+    parser.add_argument("--embedding_dir", type=str, default=EMBEDDINGS_DIR)
+    parser.add_argument("--labels", type=str, default=LABELS_PATH)
+    parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
-    if not args.embeddings and not args.raw:
-        print("ERROR: provide at least one --embeddings path or --raw", file=sys.stderr)
+    # Scan embeddings directory
+    emb_paths = sorted(glob.glob(os.path.join(args.embedding_dir, "*.pt")))
+    emb_paths = [p for p in emb_paths if not os.path.basename(p).startswith("tcga_labels")]
+    if not emb_paths:
+        print(f"No .pt files found in {args.embedding_dir}", file=sys.stderr)
         sys.exit(1)
 
-    if args.embedding_names and len(args.embedding_names) != len(args.embeddings):
-        print("ERROR: --embedding_names must match --embeddings count", file=sys.stderr)
-        sys.exit(1)
-
-    names = list(args.embedding_names)
-    if args.raw:
-        names.append("raw")
+    names = [os.path.splitext(os.path.basename(p))[0] for p in emb_paths]
 
     print("=== Loading labels ===")
     label_df = pd.read_parquet(args.labels)
@@ -128,9 +101,8 @@ def main():
 
     results = []
 
-    emb_idx = 0
-    for i, emb_path in enumerate(args.embeddings):
-        display_name = names[i] if names else os.path.splitext(os.path.basename(emb_path))[0]
+    for i, emb_path in enumerate(emb_paths):
+        display_name = names[i]
         print(f"\n{'='*60}")
         print(f"[{display_name}] Loading embeddings from {emb_path}")
         X = load_embeddings(emb_path)
@@ -140,29 +112,37 @@ def main():
         )
         print(f"  Train: {n_train}, Test: {n_test}")
         print(f"  Accuracy: {acc*100:.2f}% | Weighted F1: {f1*100:.2f}%")
-        results.append({"Embedding": display_name, "Accuracy": acc, "Weighted F1": f1, "Train": n_train, "Test": n_test})
+        results.append({
+            "Embedding": display_name, "Accuracy": acc, "Weighted F1": f1,
+            "Dims": X.shape[1], "Train": n_train, "Test": n_test
+        })
 
-    if args.raw:
-        display_name = names[-1] if args.embedding_names else "raw"
-        print(f"\n{'='*60}")
-        print(f"[{display_name}] Loading raw gene expression")
-        X_raw, _ = load_raw_data(TCGA_PARQUET)
-        assert len(X_raw) == len(y), f"Shape mismatch: {len(X_raw)} vs {len(y)}"
-        acc, f1, report, n_train, n_test, _ = evaluate_embeddings(
-            X_raw, y, groups, num_classes, le, args.seed
-        )
-        print(f"  Train: {n_train}, Test: {n_test}")
-        print(f"  Accuracy: {acc*100:.2f}% | Weighted F1: {f1*100:.2f}%")
-        results.append({"Embedding": display_name, "Accuracy": acc, "Weighted F1": f1, "Train": n_train, "Test": n_test})
+    print(f"\n{'='*60}")
+    print("[raw] Loading raw gene expression from parquet")
+    X_raw, _ = load_raw_data(TCGA_PARQUET)
+    assert len(X_raw) == len(y), f"Shape mismatch: {len(X_raw)} vs {len(y)}"
+    acc, f1, report, n_train, n_test, _ = evaluate_embeddings(
+        X_raw, y, groups, num_classes, le, args.seed
+    )
+    print(f"  Train: {n_train}, Test: {n_test}")
+    print(f"  Accuracy: {acc*100:.2f}% | Weighted F1: {f1*100:.2f}%")
+    results.append({
+        "Embedding": "raw", "Accuracy": acc, "Weighted F1": f1,
+        "Dims": X_raw.shape[1], "Train": n_train, "Test": n_test
+    })
 
-    print(f"\n{'='*72}")
-    print("BENCHMARK SUMMARY")
-    print(f"{'='*72}")
+    os.makedirs("results", exist_ok=True)
     summary = pd.DataFrame(results).sort_values("Accuracy", ascending=False)
-    summary["Accuracy"] = summary["Accuracy"].map("{:.2%}".format)
-    summary["Weighted F1"] = summary["Weighted F1"].map("{:.2%}".format)
-    print(summary.to_string(index=False))
+    summary.to_csv("results/classification_results.csv", index=False)
+    print(f"\n{'='*72}")
+    print("BENCHMARK SUMMARY — Cancer Type Classification")
     print(f"{'='*72}")
+    summary_out = summary.copy()
+    summary_out["Accuracy"] = summary_out["Accuracy"].map("{:.2%}".format)
+    summary_out["Weighted F1"] = summary_out["Weighted F1"].map("{:.2%}".format)
+    print(summary_out.to_string(index=False))
+    print(f"{'='*72}")
+    print(f"Results saved to results/classification_results.csv")
 
 
 if __name__ == "__main__":

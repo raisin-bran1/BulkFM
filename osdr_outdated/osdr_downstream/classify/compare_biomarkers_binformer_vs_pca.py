@@ -97,7 +97,7 @@ def main():
     bin_top_100 = set([g for g, c in bin_corrs[:100]])
     pca_top_100 = set([g for g, c in pca_corrs[:100]])
     intersect = bin_top_100.intersection(pca_top_100)
-    print(f"\nOverlap in Top 100 Genes: {len(intersect)}%")
+    print(f"\nOverlap in Top 100 Genes: {len(intersect)}")
 
 if __name__ == "__main__":
     main()

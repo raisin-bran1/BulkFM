@@ -1,4 +1,5 @@
 import dataclasses
+import random
 from typing import Literal, Optional
 import numpy as np
 import torch
@@ -8,7 +9,7 @@ from models.slim_performer_model import SLiMPerformerLayer
 
 
 @dataclasses.dataclass
-class GeneralizedBinformerConfig:
+class BulkFMConfig:
     hidden_dim: int = 256
     ffn_dim: int = 1024
     num_heads: int = 8
@@ -26,6 +27,7 @@ class GeneralizedBinformerConfig:
     mask_token_id: float = -10.0
 
     masking_strategy: Literal['mask_token', 'cls_bottleneck'] = 'mask_token'
+    simple_projection: bool = False
 
 
 class PoissonNLLLogSpace(nn.Module):
@@ -82,10 +84,18 @@ class BinExpressionEmbedding(nn.Module):
 
 
 class ContinuousExpressionEmbedding(nn.Module):
-    def __init__(self, dim, mask_token_id=-10):
+    def __init__(self, dim, mask_token_id=-10, simple_projection=False):
         super().__init__()
         self.mask_token_id = mask_token_id
-        self.expr_proj = nn.Linear(1, dim, bias=False)
+        # TEMPORARY: old checkpoints used a single Linear (no bias) instead of MLP
+        if simple_projection:
+            self.expr_proj = nn.Linear(1, dim, bias=False)
+        else:
+            self.expr_proj = nn.Sequential(
+                nn.Linear(1, dim),
+                nn.GELU(),
+                nn.Linear(dim, dim),
+            )
         self.mask_embedding = nn.Parameter(torch.zeros(1, 1, dim))
 
     def forward(self, x, gene_emb):
@@ -97,13 +107,16 @@ class ContinuousExpressionEmbedding(nn.Module):
         return gene_emb + expr_emb
 
 
-class GeneralizedBinformer(nn.Module):
-    def __init__(self, num_genes, cfg: GeneralizedBinformerConfig):
+class BulkFM(nn.Module):
+    def __init__(self, num_genes, cfg: BulkFMConfig):
         super().__init__()
         self.cfg = cfg
         self.num_genes = num_genes
 
         self.gene_embedding = nn.Embedding(num_genes, cfg.hidden_dim)
+        self.register_buffer('_gene_emb_base',
+                             self.gene_embedding.weight.data.unsqueeze(0),
+                             persistent=False)
 
         if cfg.expression_embedding == 'binned':
             self.expr_embedding = BinExpressionEmbedding(
@@ -112,7 +125,8 @@ class GeneralizedBinformer(nn.Module):
             self.output_dim = cfg.num_bins + 1
         else:
             self.expr_embedding = ContinuousExpressionEmbedding(
-                cfg.hidden_dim, mask_token_id=cfg.mask_token_id
+                cfg.hidden_dim, mask_token_id=cfg.mask_token_id,
+                simple_projection=cfg.simple_projection,
             )
             self.output_dim = 1
 
@@ -148,12 +162,12 @@ class GeneralizedBinformer(nn.Module):
         B, G = x.shape
         if self.cfg.dynamic_mask_range is not None:
             lo, hi = self.cfg.dynamic_mask_range
-            mask_ratio = torch.empty(1, device=x.device).uniform_(lo, hi).item()
+            mask_ratio = random.uniform(lo, hi)
             num_mask = max(1, int(G * mask_ratio))
         else:
             num_mask = max(1, int(G * self.cfg.mask_ratio))
-        rand = torch.rand(B, G, device=x.device)
-        mask_idx = rand.argsort(dim=1)[:, :num_mask]
+        idxs = torch.randperm(G, device=x.device).unsqueeze(0).expand(B, -1)
+        mask_idx = idxs[:, :num_mask]
         return mask_idx
 
     def forward(self, x, mask_idx=None, output_hidden=False, output_cls=False):
@@ -164,8 +178,7 @@ class GeneralizedBinformer(nn.Module):
         if mask_idx is None:
             mask_idx = self._get_mask(x)
 
-        gene_ids = torch.arange(G, device=device)
-        gene_emb = self.gene_embedding(gene_ids).unsqueeze(0).expand(B, -1, -1)
+        gene_emb = self._gene_emb_base.expand(B, -1, -1)
 
         if cfg.masking_strategy == 'mask_token':
             if cfg.expression_embedding == 'binned':
@@ -182,29 +195,39 @@ class GeneralizedBinformer(nn.Module):
                 return h
             return self.output_map(h)
 
-        unmask_idx = ~torch.zeros(B, G, dtype=torch.bool, device=device)\
-            .scatter(1, mask_idx, True)
+        unmask_idx = torch.ones(B, G, dtype=torch.bool, device=device)\
+            .scatter(1, mask_idx, False)
 
-        cls_out_list = []
-        for b in range(B):
-            um = unmask_idx[b].nonzero(as_tuple=True)[0]
-
+        # Batched path: when all samples share the same mask
+        if (unmask_idx == unmask_idx[:1]).all():
+            um = unmask_idx[0].nonzero(as_tuple=True)[0]
             if cfg.expression_embedding == 'binned':
-                gb = gene_emb[b:b+1, um]
-                h = gb + self.expr_embedding(x[b:b+1, um])
+                gb = gene_emb[:, um]
+                h = gb + self.expr_embedding(x[:, um])
             else:
-                gb = gene_emb[b:b+1, um]
-                h = self.expr_embedding(x[b:b+1, um], gb)
-
-            seq = torch.cat([h, self.cls_token], dim=1)
-
+                gb = gene_emb[:, um]
+                h = self.expr_embedding(x[:, um], gb)
+            seq = torch.cat([h, self.cls_token.expand(B, -1, -1)], dim=1)
             for layer in self.layers:
                 rfs = layer.attention.sample_rfs(device)
                 seq = layer.full_forward(seq, rfs)
-
-            cls_out_list.append(seq[0, -1])
-
-        cls_out = torch.stack(cls_out_list, dim=0)
+            cls_out = seq[:, -1]
+        else:
+            cls_out_list = []
+            for b in range(B):
+                um = unmask_idx[b].nonzero(as_tuple=True)[0]
+                if cfg.expression_embedding == 'binned':
+                    gb = gene_emb[b:b+1, um]
+                    h = gb + self.expr_embedding(x[b:b+1, um])
+                else:
+                    gb = gene_emb[b:b+1, um]
+                    h = self.expr_embedding(x[b:b+1, um], gb)
+                seq = torch.cat([h, self.cls_token], dim=1)
+                for layer in self.layers:
+                    rfs = layer.attention.sample_rfs(device)
+                    seq = layer.full_forward(seq, rfs)
+                cls_out_list.append(seq[0, -1])
+            cls_out = torch.stack(cls_out_list, dim=0)
 
         if output_cls:
             return cls_out

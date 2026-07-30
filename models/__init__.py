@@ -1,2 +1,2 @@
-from .generalized_binformer import GeneralizedBinformer, GeneralizedBinformerConfig
+from .bulkfm import BulkFM, BulkFMConfig
 from .binformer import Binformer

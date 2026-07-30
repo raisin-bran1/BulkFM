@@ -17,7 +17,6 @@
   "val_chunks": 1,
   "train_subset": null,
   "val_subset": 2000,
-  "balanced_sampling": true,
   "mask_ratio": 0.15,
   "mask_token": -10,
   "mask_token_prob": 0.8,

@@ -8,18 +8,18 @@ TRAIN_CONFIG = {
     'ffn_dim': 1024,
     'num_heads': 8,
     'num_layers': 4,
-    'feature_type': 'sqr',
+    'feature_type': 'elu+1',
     'compute_type': 'iter',
 
     # Expression embedding
-    'expression_embedding': 'binned',
+    'expression_embedding': 'binned', # binned or continous
     'num_bins': 50,
-    'continuous_loss': 'mse',
+    'continuous_loss': 'mse', # mse or poisson
 
     # Masking strategy
-    'masking_strategy': 'mask_token',
+    'masking_strategy': 'mask_token', # mask_token or cls_bottleneck
     'mask_ratio': 0.15,
-    'dynamic_mask_range': None,
+    'dynamic_mask_range': None, # None or smth like [0.1, 0.5]
     'mask_token': -10,
     'mask_token_prob': 0.8,
     'random_token_prob': 'auto',
@@ -27,8 +27,8 @@ TRAIN_CONFIG = {
     # Optimizer
     'learning_rate': 4e-4,
     'weight_decay': 1e-4,
-    'batch_size': 4,
-    'epochs': 20,
+    'batch_size': 32,
+    'epochs': 15,
     'early_stopping': True,
     'patience': 5,
     'seed': 42,
@@ -38,14 +38,16 @@ TRAIN_CONFIG = {
     'val_chunks': 1,
     'train_subset': None,
     'val_subset': 2000,
-    'balanced_sampling': True,
 
-    # Performance
+    # Performance & Stability
     'num_workers': 2,
     'persistent_workers': True,
+    'torch_compile': True, # Turn off when dynamic masking is on
+    'validations_per_epoch': 0,
+    'grad_clip_norm': 1.0,
 
     # Paths
-    'data_dir': '/global/scratch/users/brianzhou/archs4_human',
+    'data_dir': '/media/volume/bulkrnadata/humandata',
     'checkpoint_dir': 'checkpoints',
 }
 

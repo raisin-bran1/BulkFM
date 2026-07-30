@@ -365,7 +365,7 @@ class MultiHeadAttention(torch.nn.Module):
     num = torch.transpose(num, 0, 1)
     den = torch.transpose(den, 0, 1)
 
-    outputs = num / (den[Ellipsis, None] + 1e-16)
+    outputs = num / (den[Ellipsis, None] + 1e-6)
     outputs = outputs.reshape(x.shape)
 
     return outputs

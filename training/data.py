@@ -1,13 +1,23 @@
 # coding=utf-8
 # Copyright 2026 The Google Research Authors.
 
-import json
 from pathlib import Path
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 import pyarrow as pa
 import pyarrow.parquet as pq
+
+
+def _list_expression_files(batch_dir):
+    """List parquet files that look like processed expression matrices (samples × genes).
+
+    Excludes intermediate preprocessing files (e.g., ``input_chunk_*`` which have
+    genes as rows and samples as columns).
+    """
+    files = sorted(Path(batch_dir).glob("*.parquet"))
+    files = [f for f in files if not f.name.startswith('input_chunk_')]
+    return files
 
 def _parquet_stored_value_type(t):
     """Unwrap dictionary-encoded columns to the stored value type."""
@@ -31,9 +41,11 @@ def _parquet_numeric_gene_columns(schema: pa.Schema) -> list:
 class ExpressionMLMDataset(Dataset):
     def __init__(self, expr_array, mask_ratio=0.15, mask_token=-10,
                  mask_token_prob=0.8, random_token_prob=0.1, num_bins=50,
-                 expression_embedding='binned', masking_strategy='mask_token'):
+                 expression_embedding='binned', masking_strategy='mask_token',
+                 dynamic_mask_range=None):
         self.X = expr_array.astype(np.float32)
         self.mask_ratio = mask_ratio
+        self.dynamic_mask_range = dynamic_mask_range
         self.mask_token = mask_token
         self.mask_token_prob = mask_token_prob
         self.random_token_prob = random_token_prob
@@ -62,27 +74,31 @@ class ExpressionMLMDataset(Dataset):
         x_orig = self.X[idx].copy()
         num_genes = x_orig.shape[0]
 
-        num_mask = max(1, int(num_genes * self.mask_ratio))
-        mask_indices = np.random.choice(num_genes, num_mask, replace=False)
-
-        if self.masking_strategy == 'mask_token':
+        if self.dynamic_mask_range is not None:
+            # Training loop handles masking dynamically; return raw input
             x_masked = x_orig.copy()
-            nonzero_vals = x_orig[x_orig > 0]
-            probs = np.random.random(num_mask)
-            mask_token_mask = probs < self.mask_token_prob
-            x_masked[mask_indices[mask_token_mask]] = self.mask_token
-            random_token_mask = (probs >= self.mask_token_prob) & \
-                (probs < (self.mask_token_prob + self.random_token_prob))
-            num_random = np.sum(random_token_mask)
-            if num_random > 0:
-                if len(nonzero_vals) > 0:
-                    x_masked[mask_indices[random_token_mask]] = \
-                        np.random.choice(nonzero_vals, size=num_random)
-                else:
-                    x_masked[mask_indices[random_token_mask]] = \
-                        np.random.uniform(0, 10, size=num_random)
+            mask_indices = np.array([], dtype=np.int64)
         else:
-            x_masked = x_orig.copy()
+            num_mask = max(1, int(num_genes * self.mask_ratio))
+            mask_indices = np.random.choice(num_genes, num_mask, replace=False)
+            if self.masking_strategy == 'mask_token':
+                x_masked = x_orig.copy()
+                nonzero_vals = x_orig[x_orig > 0]
+                probs = np.random.random(num_mask)
+                mask_token_mask = probs < self.mask_token_prob
+                x_masked[mask_indices[mask_token_mask]] = self.mask_token
+                random_token_mask = (probs >= self.mask_token_prob) & \
+                    (probs < (self.mask_token_prob + self.random_token_prob))
+                num_random = np.sum(random_token_mask)
+                if num_random > 0:
+                    if len(nonzero_vals) > 0:
+                        x_masked[mask_indices[random_token_mask]] = \
+                            np.random.choice(nonzero_vals, size=num_random)
+                    else:
+                        x_masked[mask_indices[random_token_mask]] = \
+                            np.random.uniform(0, 10, size=num_random)
+            else:
+                x_masked = x_orig.copy()
 
         if self.expression_embedding == 'binned':
             target = self.target_bins[idx].copy()
@@ -96,33 +112,18 @@ class ExpressionMLMDataset(Dataset):
             torch.tensor(mask_indices, dtype=torch.long),
         )
 
-def get_sample_indices(batch_dir, train_chunks=None, val_chunks=None, 
-                       train_subset=None, val_subset=None, 
-                       balanced_sampling=True, seed=42, verbose=True):
-    """
-    Build sample index lists for train/val from specified parquet chunks.
-    
-    Args:
-        batch_dir: Directory containing *.parquet chunks.
-        train_chunks: int (count) or list of indices for training.
-        val_chunks: int (count) or list of indices for validation.
-        train_subset: optional max samples for train.
-        val_subset: optional max samples for val.
-        balanced_sampling: if True, balance by species within the selected chunks.
-        seed: random seed.
-        verbose: print progress.
-    """
+def get_sample_indices(batch_dir, train_chunks=None, val_chunks=None,
+                       train_subset=None, val_subset=None,
+                       seed=42, verbose=True):
     batch_dir = Path(batch_dir)
-    batch_files = sorted(batch_dir.glob("*.parquet"))
+    batch_files = _list_expression_files(batch_dir)
     if not batch_files:
-        raise FileNotFoundError(f"No parquet files found in {batch_dir}")
-    
+        raise FileNotFoundError(f"No expression parquet files found in {batch_dir}")
+
     rng = np.random.default_rng(seed)
 
-    # Determine chunk indices
     num_total_chunks = len(batch_files)
     if train_chunks is None:
-        # Default: use 80% for train
         train_idxs = list(range(int(0.8 * num_total_chunks)))
     elif isinstance(train_chunks, int):
         train_idxs = list(range(min(train_chunks, num_total_chunks)))
@@ -130,10 +131,8 @@ def get_sample_indices(batch_dir, train_chunks=None, val_chunks=None,
         train_idxs = train_chunks
 
     if val_chunks is None:
-        # Default: use remaining
         val_idxs = [i for i in range(num_total_chunks) if i not in train_idxs]
     elif isinstance(val_chunks, int):
-        # Pick 'val_chunks' count after train_idxs
         remaining = [i for i in range(num_total_chunks) if i not in train_idxs]
         val_idxs = remaining[:val_chunks]
     else:
@@ -142,84 +141,39 @@ def get_sample_indices(batch_dir, train_chunks=None, val_chunks=None,
     if verbose:
         print(f"[DATA] Chunks: {len(train_idxs)} for training, {len(val_idxs)} for validation")
 
-    # Load metadata (optional)
-    metadata_file = batch_dir.parent / "samples.json"
-    sample_to_species = {}
-    if metadata_file.exists():
-        with open(metadata_file) as f:
-            samples_meta = json.load(f)
-        sample_to_species = {s["id"]: s["species"] for s in samples_meta if "species" in s}
-
-    manifest_path = batch_dir.parent / "batch_manifest.json"
-    batch_manifest = None
-    if manifest_path.exists():
-        with open(manifest_path) as f:
-            batch_manifest = json.load(f)
-
-    def _collect_samples_from_chunks(chunk_idxs):
+    def _collect_samples(chunk_idxs):
         samples = []
         for b_idx in chunk_idxs:
             batch_file = batch_files[b_idx]
-            sample_ids = []
-            if batch_manifest:
-                sample_ids = batch_manifest.get(batch_file.name)
-                if sample_ids is None:
-                    # try sorted keys fallback
-                    keys = sorted(batch_manifest.keys())
-                    if b_idx < len(keys):
-                        sample_ids = batch_manifest[keys[b_idx]]
-            
-            if not sample_ids:
-                # read parquet index
-                pf = pq.ParquetFile(str(batch_file))
-                cols = pf.schema_arrow.names
-                idx_col = 'geo_accession' if 'geo_accession' in cols else (
-                    '__index_level_0__' if '__index_level_0__' in cols else None
-                )
-                if idx_col:
-                    table = pf.read(columns=[idx_col], use_threads=True)
-                    sample_ids = table.column(0).to_pylist()
-                else:
-                    sample_ids = [str(i) for i in range(pf.metadata.num_rows)]
-            
-            for s_idx, s_id in enumerate(sample_ids):
-                species = sample_to_species.get(s_id, "unknown")
-                samples.append((b_idx, s_idx, species))
+            pf = pq.ParquetFile(str(batch_file))
+            cols = pf.schema_arrow.names
+            idx_col = 'geo_accession' if 'geo_accession' in cols else (
+                '__index_level_0__' if '__index_level_0__' in cols else None
+            )
+            if idx_col:
+                table = pf.read(columns=[idx_col], use_threads=True)
+                sample_ids = table.column(0).to_pylist()
+            else:
+                sample_ids = [str(i) for i in range(pf.metadata.num_rows)]
+
+            for s_idx in range(len(sample_ids)):
+                samples.append((b_idx, s_idx))
         return samples
 
-    train_all = _collect_samples_from_chunks(train_idxs)
-    val_all = _collect_samples_from_chunks(val_idxs)
+    train_all = _collect_samples(train_idxs)
+    val_all = _collect_samples(val_idxs)
 
-    def _subset_and_balance(samples, max_count, balance):
-        if not samples: return []
-        
-        # Partition by species
-        by_sp = {}
-        for b, s, sp in samples:
-            by_sp.setdefault(sp, []).append((b, s))
-        
-        if balance and len(by_sp) > 1:
-            per_sp = max_count // len(by_sp) if max_count else min(len(v) for v in by_sp.values())
-            balanced = []
-            for sp, items in by_sp.items():
-                if len(items) > per_sp:
-                    selected = rng.choice(len(items), per_sp, replace=False)
-                    balanced.extend([items[i] for i in selected])
-                else:
-                    balanced.extend(items)
-            final = balanced
-        else:
-            # Flatten to (batch, row)
-            final = [(b, s) for b, s, sp in samples]
-            if max_count and len(final) > max_count:
-                selected = rng.choice(len(final), max_count, replace=False)
-                final = [final[i] for i in selected]
-        
-        rng.shuffle(final)
-        return final
+    def _subset_and_shuffle(samples, max_count):
+        if not samples:
+            return []
+        if max_count and len(samples) > max_count:
+            selected = rng.choice(len(samples), max_count, replace=False)
+            samples = [samples[i] for i in selected]
+        rng.shuffle(samples)
+        return samples
 
-    train_indices = _subset_and_balance(train_all, train_subset, balanced_sampling)
-    val_indices = _subset_and_balance(val_all, val_subset, balanced_sampling)
+    train_indices = _subset_and_shuffle(train_all, train_subset)
+    val_indices = _subset_and_shuffle(val_all, val_subset)
 
     if verbose:
         print(f"       Train: {len(train_indices):,} samples from {len(train_idxs)} chunks")
@@ -230,7 +184,7 @@ def get_sample_indices(batch_dir, train_chunks=None, val_chunks=None,
 def load_batch_data(batch_dir, sample_indices, verbose=True):
     """Load selected samples from parquet chunks into a single numpy array."""
     batch_dir = Path(batch_dir)
-    batch_files = sorted(batch_dir.glob("*.parquet"))
+    batch_files = _list_expression_files(batch_dir)
     
     from collections import defaultdict
     batch_to_samples = defaultdict(list)
@@ -264,8 +218,17 @@ def load_batch_data(batch_dir, sample_indices, verbose=True):
 
 def get_num_genes_from_batches(batch_dir):
     """Infer number of genes from parquet schema."""
-    batch_files = sorted(Path(batch_dir).glob("*.parquet"))
+    batch_files = _list_expression_files(batch_dir)
     if not batch_files:
-        raise FileNotFoundError(f"No parquet files found in {batch_dir}")
+        raise FileNotFoundError(f"No expression parquet files found in {batch_dir}")
     pf = pq.ParquetFile(str(batch_files[0]))
     return len(_parquet_numeric_gene_columns(pf.schema_arrow))
+
+
+def get_gene_vocabulary(batch_dir):
+    """Return list of gene column names from parquet schema."""
+    batch_files = _list_expression_files(batch_dir)
+    if not batch_files:
+        raise FileNotFoundError(f"No expression parquet files found in {batch_dir}")
+    pf = pq.ParquetFile(str(batch_files[0]))
+    return _parquet_numeric_gene_columns(pf.schema_arrow)
