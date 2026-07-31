@@ -61,6 +61,7 @@ def main():
         mask_ratio=ckpt_config.get("mask_ratio", 0.75),
         mask_token_id=ckpt_config.get("mask_token", -10),
         continuous_loss=ckpt_config.get("continuous_loss", "mse"),
+        simple_projection=ckpt_config.get("expression_projection", "nonlinear") == "linear",
     )
     print(f"  Config: hidden={model_cfg.hidden_dim}, expr={model_cfg.expression_embedding}, "
           f"mask={model_cfg.masking_strategy}")

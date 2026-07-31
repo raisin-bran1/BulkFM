@@ -21,7 +21,7 @@ from sklearn.preprocessing import StandardScaler
 
 EMBEDDINGS_DIR = "embeddings"
 LABELS_PATH = "embeddings/tcga_labels.parquet"
-OUTPUT_DIR = "results"
+OUTPUT_DIR = "results/plots"
 
 
 def load_embeddings(path):
@@ -93,7 +93,7 @@ def main():
         plt.close(fig)
         print(f"  Saved: {out_path}")
 
-        print("Done.")
+    print("Done.")
 
 
 if __name__ == "__main__":

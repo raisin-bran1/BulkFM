@@ -121,10 +121,12 @@ def main():
     parser.add_argument("--num-heads", type=int, default=8)
     parser.add_argument("--num-layers", type=int, default=4)
     parser.add_argument("--num-bins", type=int, default=50)
-    parser.add_argument("--expression-embedding", type=str, default="continuous",
-                        choices=["binned", "continuous"])
-    parser.add_argument("--masking-strategy", type=str, required=True,
-                        choices=["mask_token", "cls_bottleneck"])
+    parser.add_argument("--expression-embedding", type=str, default=None,
+                        choices=["binned", "continuous"],
+                        help="Overrides auto-detection from config.json")
+    parser.add_argument("--masking-strategy", type=str, default=None,
+                        choices=["mask_token", "cls_bottleneck"],
+                        help="Overrides auto-detection from config.json")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -134,15 +136,35 @@ def main():
     embeddings_base = os.path.join(benchmark_dir, "data", "embeddings")
     os.makedirs(embeddings_base, exist_ok=True)
 
-    cfg = BulkFMConfig(
-        hidden_dim=args.hidden_dim,
-        ffn_dim=args.ffn_dim,
-        num_heads=args.num_heads,
-        num_layers=args.num_layers,
-        num_bins=args.num_bins,
-        expression_embedding=args.expression_embedding,
-        masking_strategy=args.masking_strategy,
-    )
+    # Auto-detect config from checkpoint dir if available
+    ckpt_dir = os.path.dirname(args.checkpoint)
+    config_path = os.path.join(ckpt_dir, "config.json")
+    if os.path.exists(config_path):
+        import json
+        with open(config_path) as f:
+            data = json.load(f)
+        print(f"Loaded config from {config_path}")
+        cfg = BulkFMConfig(
+            hidden_dim=data.get("hidden_dim", args.hidden_dim),
+            ffn_dim=data.get("ffn_dim", args.ffn_dim),
+            num_heads=data.get("num_heads", args.num_heads),
+            num_layers=data.get("num_layers", args.num_layers),
+            num_bins=data.get("num_bins", args.num_bins),
+            expression_embedding=args.expression_embedding or data.get("expression_embedding", "continuous"),
+            masking_strategy=args.masking_strategy or data.get("masking_strategy", "mask_token"),
+            simple_projection=data.get("expression_projection", "nonlinear") == "linear",
+        )
+    else:
+        print("No config.json found, using CLI args")
+        cfg = BulkFMConfig(
+            hidden_dim=args.hidden_dim,
+            ffn_dim=args.ffn_dim,
+            num_heads=args.num_heads,
+            num_layers=args.num_layers,
+            num_bins=args.num_bins,
+            expression_embedding=args.expression_embedding or "continuous",
+            masking_strategy=args.masking_strategy or "mask_token",
+        )
 
     gene_vocab_path = os.path.join(root_path, "checkpoints", "gene_vocabulary.csv")
     if not os.path.exists(gene_vocab_path):

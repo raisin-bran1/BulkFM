@@ -144,14 +144,21 @@ def main():
     os.makedirs("results", exist_ok=True)
     results_df = pd.DataFrame(results)
     results_df.to_csv("results/imputation_results.csv", index=False)
-    print(f"\n{'='*72}")
+    width = max(len(r["Method"]) for r in results)
+    headers = ["Method", "Global PCC", "Gene PCC", "Sample PCC", "MSE"]
+    data = [[r["Method"], f"{r['Global PCC']:.4f}", f"{r['Per-gene PCC']:.4f}",
+             f"{r['Per-sample PCC']:.4f}", f"{r['MSE']:.6f}"] for r in results]
+    col_widths = [max(width, len(h)) for h, rows in zip(headers, zip(*data))]
+    row_fmt = "  ".join(f"{{:<{w}}}" for w in col_widths)
+    sep = "-" * (sum(col_widths) + 2 * (len(col_widths) - 1))
+    print(f"\n{'='*len(sep)}")
     print("IMPUTATION BENCHMARK SUMMARY")
-    print(f"{'='*72}")
-    print(f"{'Method':<15} {'Global PCC':<12} {'Gene PCC':<12} {'Sample PCC':<12} {'MSE':<10}")
-    print("-" * 61)
-    for r in results:
-        print(f"{r['Method']:<15} {r['Global PCC']:<12.4f} {r['Per-gene PCC']:<12.4f} {r['Per-sample PCC']:<12.4f} {r['MSE']:<10.6f}")
-    print(f"{'='*72}")
+    print(f"{'='*len(sep)}")
+    print(row_fmt.format(*headers))
+    print(sep)
+    for row in data:
+        print(row_fmt.format(*row))
+    print(f"{'='*len(sep)}")
     print(f"Results saved to results/imputation_results.csv")
 
 

@@ -47,6 +47,7 @@ def config_from_checkpoint(checkpoint_path: str) -> tuple[BulkFMConfig, bool]:
             masking_strategy=data.get("masking_strategy", "mask_token"),
             mask_ratio=data.get("mask_ratio", 0.15),
             mask_token_id=data.get("mask_token", -10.0),
+            simple_projection=data.get("expression_projection", "nonlinear") == "linear",
         ), True
     return None, False
 

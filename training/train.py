@@ -302,6 +302,7 @@ def main():
         dynamic_mask_range=CONFIG.get('dynamic_mask_range'),
         mask_token_id=CONFIG['mask_token'],
         masking_strategy=CONFIG['masking_strategy'],
+        simple_projection=CONFIG.get('expression_projection', 'nonlinear') == 'linear',
     )
 
     model = BulkFM(num_genes=num_genes, cfg=model_cfg).to(device)
@@ -475,7 +476,12 @@ def main():
         logger.info(f"[TRAIN] Starting training from epoch {start_epoch}...")
         logger.info("=" * 70 + "\n")
 
-    val_interval = max(1, len(train_loader) // CONFIG.get('validations_per_epoch', 4))
+    n_validations = CONFIG.get('validations_per_epoch', 0) or 0
+    if n_validations > 0:
+        interval = max(1, len(train_loader) // (n_validations + 1))
+        val_positions = { (i + 1) * interval for i in range(n_validations) }
+    else:
+        val_positions = set()
     report_interval = max(1, len(train_loader) // 4)
 
     for epoch in range(start_epoch, CONFIG['epochs']):
@@ -555,7 +561,7 @@ def main():
             running_loss += loss.item()
             num_batches += 1
 
-            if (batch_idx + 1) % val_interval == 0:
+            if (batch_idx + 1) in val_positions:
                 avg_train = running_loss / num_batches
                 if is_main:
                     logger.info(f"  Epoch {epoch+1} | Batch {batch_idx+1}/{len(train_loader)} | Loss: {loss.item():.6f} | Avg: {avg_train:.6f}")
@@ -612,10 +618,7 @@ def main():
                 logger.info(f"  Epoch {epoch+1} | {pct:.0f}% | Batch {batch_idx+1}/{len(train_loader)} | Loss: {loss.item():.6f} | Avg: {avg_train:.6f}")
 
         epoch_train_loss = running_loss / max(1, num_batches)
-        if (batch_idx + 1) % val_interval != 0 or num_batches == 0:
-            epoch_val_loss, epoch_val_acc, epoch_val_top3, bin_dist, true_dist = _validate()
-        else:
-            epoch_val_loss, epoch_val_acc, epoch_val_top3, bin_dist, true_dist = val_loss, val_acc, val_top3, bin_dist, true_dist
+        epoch_val_loss, epoch_val_acc, epoch_val_top3, bin_dist, true_dist = _validate()
 
         train_losses.append(epoch_train_loss)
         val_losses.append(epoch_val_loss)

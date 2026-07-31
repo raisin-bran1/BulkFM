@@ -15,9 +15,5 @@ Attention: how much worse is linear attention?
 
 Training & validation data (ARCHS4) is in /media/volume/bulkrnadata/humandata
 Eval data (TCGA) is in /media/volume/bulkrnadata/tcgadata
-OSDR data is in /media/volume/bulkrnamouse/osdrdata
-ARCHS4 mouse is yet to be added and processed in /media/volume/bulkrnamouse
-
-PIPELINE.md gives instructions for how to train models in this repo.
 
 No need to look at osdr_outdated, it won't have any useful contents

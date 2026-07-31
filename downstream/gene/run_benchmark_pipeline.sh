@@ -7,8 +7,8 @@ set -euo pipefail
 #
 # Example:
 #   bash downstream/gene/run_benchmark_pipeline.sh \
-#       checkpoints/train_20260729_230537_local/best_model.pt \
-#       BulkFM-CLS cls_bottleneck
+#       checkpoints/train_20260730_223417_local/best_model.pt \
+#       BulkFM-CLS-CONT-15 cls_bottleneck
 #
 # Prerequisites:
 #   - conda environments: nasa (BulkFM), gene_embed_benchmark (benchmark repo)
@@ -39,8 +39,6 @@ echo "=== Step 1: Extract and prepare embeddings ==="
 conda run -n nasa python "$ROOT_DIR/downstream/gene/prepare_embeddings_for_benchmark.py" \
     --checkpoint "$CKPT" \
     --output-name "$OUTPUT_NAME" \
-    --expression-embedding continuous \
-    --masking-strategy "$MASKING_STRATEGY" \
     2>&1 | tee "$LOG_DIR/${TIMESTAMP}_${OUTPUT_NAME}_extract.log"
 
 # ---- Step 2: Run gene-level benchmarks ----
@@ -92,9 +90,10 @@ conda run -n gene_embed_benchmark python \
     -d "$BENCH_DIR/results/tsvs" \
     2>&1 | tee "$LOG_DIR/${TIMESTAMP}_${OUTPUT_NAME}_omim.log"
 
-# ---- Step 3: Run gene-pair benchmarks ----
+# ---- Step 3: Run gene-pair benchmarks (in parallel) ----
 echo ""
-echo "=== Step 3: Gene-pair benchmarks ==="
+echo "=== Step 3: Gene-pair benchmarks (parallel) ==="
+PAIR_PIDS=()
 for pair in ng sl tf pombe; do
     echo "  Pair: $pair"
     conda run -n gene_embed_benchmark python \
@@ -104,7 +103,11 @@ for pair in ng sl tf pombe; do
         --cv-pkl "$BENCH_DIR/data/data_splits/gene_pair_benchmark/${pair}_nested_cv_splits.pkl" \
         --out-root "$BENCH_DIR/results/tsvs" \
         --suffix "sum_intersected_${pair}" \
-        2>&1 | tee "$LOG_DIR/${TIMESTAMP}_${OUTPUT_NAME}_pair_${pair}.log"
+        2>&1 | tee "$LOG_DIR/${TIMESTAMP}_${OUTPUT_NAME}_pair_${pair}.log" &
+    PAIR_PIDS+=("$!")
+done
+for pid in "${PAIR_PIDS[@]}"; do
+    wait "$pid" || { echo "ERROR: one of the gene-pair benchmarks failed (pid $pid)"; exit 1; }
 done
 
 # ---- Step 4: Append results to CSV ----

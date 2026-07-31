@@ -12,13 +12,14 @@ TRAIN_CONFIG = {
     'compute_type': 'iter',
 
     # Expression embedding
-    'expression_embedding': 'binned', # binned or continous
+    'expression_embedding': 'continuous', # binned or continous
     'num_bins': 50,
     'continuous_loss': 'mse', # mse or poisson
+    'expression_projection': 'linear', # linear or nonlinear (MLP)
 
     # Masking strategy
     'masking_strategy': 'mask_token', # mask_token or cls_bottleneck
-    'mask_ratio': 0.15,
+    'mask_ratio': 0.3,
     'dynamic_mask_range': None, # None or smth like [0.1, 0.5]
     'mask_token': -10,
     'mask_token_prob': 0.8,
@@ -28,7 +29,7 @@ TRAIN_CONFIG = {
     'learning_rate': 4e-4,
     'weight_decay': 1e-4,
     'batch_size': 32,
-    'epochs': 15,
+    'epochs': 20,
     'early_stopping': True,
     'patience': 5,
     'seed': 42,

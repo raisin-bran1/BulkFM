@@ -1,3 +1,3 @@
-My contributions to the NASA AI4LS Data Discovery Spring 2026 Project: Training and Benchmarking Foundation Models for Space Biology
+Benchmarking architectures for Bulk RNA-seq foundation models, as part of the NASA AI4LS group
 
-All .pt (models) and .parquet (big data) files are missing due to storage size constraints
+All .pt (models) and .parquet (big data) files are removed
