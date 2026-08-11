@@ -1,0 +1,14 @@
+Using device: cuda
+Loaded config from checkpoints/train_20260731_082004_local/config.json
+=== Step 1: Load gene vocabulary ===
+  Loaded 19239 ENSG IDs
+=== Step 2: Extract gene embeddings ===
+  Detected old checkpoint format (simple_projection=True)
+  Extracted 19239 genes x 256 dims in 1.0s (mode=forward_mask)
+=== Step 3: Map ENSG→Entrez ===
+  Loading cached ENSG→Entrez mapping from /home/exouser/gene-embedding-benchmarks/data/embeddings/ensg_to_entrez.csv
+=== Step 4: Save to benchmark repo ===
+  19215 / 19239 genes have Entrez IDs
+  -> all_genes/BulkFM-MASK-CONT-31/ (19213 genes x 256 dims)
+  -> intersect/BulkFM-MASK-CONT-31/ (11325 genes x 256 dims)
+=== Done ===

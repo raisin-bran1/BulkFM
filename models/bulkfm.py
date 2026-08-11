@@ -28,6 +28,7 @@ class BulkFMConfig:
 
     masking_strategy: Literal['mask_token', 'cls_bottleneck'] = 'mask_token'
     simple_projection: bool = False
+    sample_level_emb: int = 0  # bottleneck rank of the sample-level MLP (0 = disabled)
 
 
 class PoissonNLLLogSpace(nn.Module):
@@ -87,14 +88,14 @@ class ContinuousExpressionEmbedding(nn.Module):
     def __init__(self, dim, mask_token_id=-10, simple_projection=False):
         super().__init__()
         self.mask_token_id = mask_token_id
-        # TEMPORARY: old checkpoints used a single Linear (no bias) instead of MLP
+        self.simple_projection = simple_projection
         if simple_projection:
             self.expr_proj = nn.Linear(1, dim, bias=False)
         else:
-            self.expr_proj = nn.Sequential(
-                nn.Linear(1, dim),
-                nn.GELU(),
-                nn.Linear(dim, dim),
+            self.expr_proj = None
+            self.inv_freq = nn.Parameter(
+                1. / (100 ** (torch.arange(0, dim, 2).float() / dim)),
+                requires_grad=False
             )
         self.mask_embedding = nn.Parameter(torch.zeros(1, 1, dim))
 
@@ -102,7 +103,11 @@ class ContinuousExpressionEmbedding(nn.Module):
         is_mask = (x == self.mask_token_id).unsqueeze(-1)
         x_safe = x.clamp(min=0)
         x_log1p = torch.log1p(x_safe)
-        expr_emb = self.expr_proj(x_log1p.unsqueeze(-1))
+        if self.simple_projection:
+            expr_emb = self.expr_proj(x_log1p.unsqueeze(-1))
+        else:
+            expr_emb = torch.einsum("bi,j->bij", x_log1p, self.inv_freq)
+            expr_emb = torch.cat((expr_emb.sin(), expr_emb.cos()), dim=-1)
         expr_emb = torch.where(is_mask, self.mask_embedding, expr_emb)
         return gene_emb + expr_emb
 
@@ -136,6 +141,15 @@ class BulkFM(nn.Module):
             for _ in range(cfg.num_layers)
         ])
 
+        if cfg.sample_level_emb:
+            self.global_expr_proj = nn.Sequential(
+                nn.Linear(num_genes, cfg.sample_level_emb),
+                nn.ReLU(),
+                nn.Linear(cfg.sample_level_emb, cfg.hidden_dim),
+            )
+        else:
+            self.global_expr_proj = None
+
         if cfg.masking_strategy == 'cls_bottleneck':
             self.cls_token = nn.Parameter(torch.randn(1, 1, cfg.hidden_dim) * 0.02)
             dec_hidden = max(cfg.hidden_dim, 256)
@@ -166,7 +180,7 @@ class BulkFM(nn.Module):
             num_mask = max(1, int(G * mask_ratio))
         else:
             num_mask = max(1, int(G * self.cfg.mask_ratio))
-        idxs = torch.randperm(G, device=x.device).unsqueeze(0).expand(B, -1)
+        idxs = torch.argsort(torch.rand(B, G, device=x.device), dim=1)
         mask_idx = idxs[:, :num_mask]
         return mask_idx
 
@@ -180,12 +194,18 @@ class BulkFM(nn.Module):
 
         gene_emb = self._gene_emb_base.expand(B, -1, -1)
 
+        global_emb = None
+        if self.global_expr_proj is not None:
+            global_emb = self.global_expr_proj(x).unsqueeze(1)
+
         if cfg.masking_strategy == 'mask_token':
             if cfg.expression_embedding == 'binned':
                 h = self.expr_embedding(x)
                 h = gene_emb + h
             else:
                 h = self.expr_embedding(x, gene_emb)
+            if global_emb is not None:
+                h = h + global_emb
 
             for layer in self.layers:
                 rfs = layer.attention.sample_rfs(device)
@@ -207,6 +227,8 @@ class BulkFM(nn.Module):
             else:
                 gb = gene_emb[:, um]
                 h = self.expr_embedding(x[:, um], gb)
+            if global_emb is not None:
+                h = h + global_emb.expand(-1, h.shape[1], -1)
             seq = torch.cat([h, self.cls_token.expand(B, -1, -1)], dim=1)
             for layer in self.layers:
                 rfs = layer.attention.sample_rfs(device)
@@ -222,6 +244,8 @@ class BulkFM(nn.Module):
                 else:
                     gb = gene_emb[b:b+1, um]
                     h = self.expr_embedding(x[b:b+1, um], gb)
+                if global_emb is not None:
+                    h = h + global_emb[b:b+1]
                 seq = torch.cat([h, self.cls_token], dim=1)
                 for layer in self.layers:
                     rfs = layer.attention.sample_rfs(device)

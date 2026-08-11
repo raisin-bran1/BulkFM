@@ -10,6 +10,7 @@ import os
 import sys
 import time
 import json
+import math
 import logging
 import argparse
 import random
@@ -31,7 +32,7 @@ import pandas as pd
 
 # Import from our new modules
 from training.config import CONFIG, USE_SMOKE
-from training.data import get_sample_indices, load_batch_data, ExpressionMLMDataset, get_gene_vocabulary
+from training.data import get_sample_indices, load_batch_data, ExpressionMLMDataset, get_gene_vocabulary, get_num_genes_from_batches, group_indices_by_chunk, apply_dynamic_mask
 from training.utils import _coerce_config_types, build_run_tag
 from models.bulkfm import BulkFM, BulkFMConfig, PoissonNLLLogSpace
 
@@ -41,12 +42,6 @@ try:
     sys.stderr = open(sys.stderr.fileno(), mode='w', buffering=1)
 except Exception as e:
     print(f"[WARN] Could not set unbuffered output: {e}", file=sys.stderr)
-
-try:
-    import wandb
-    HAS_WANDB = True
-except ImportError:
-    HAS_WANDB = False
 
 try:
     import matplotlib
@@ -122,16 +117,11 @@ def main():
     # Prefix with smoke or train
     run_prefix = "smoke" if USE_SMOKE else "train"
     
-    # Use WANDB Run ID if available (standard for sweeps), otherwise fallback to Job ID
-    wandb_run_id = os.environ.get("WANDB_RUN_ID")
+    # Use SLURM Job ID if available, otherwise fallback to timestamp
     slurm_job_id = os.environ.get("SLURM_JOB_ID", "local")
-    
-    if wandb_run_id:
-        run_id = f"{run_prefix}_{wandb_run_id}"
-    else:
-        run_id = f"{run_prefix}_{run_timestamp}_{slurm_job_id}"
-    
-    # We need to broadcast the run_id from main rank if using wandb
+    run_id = f"{run_prefix}_{run_timestamp}_{slurm_job_id}"
+
+    # Broadcast the run_id from main rank
     run_id_list = [run_id if is_main else None]
     dist.broadcast_object_list(run_id_list, src=0)
     run_id = run_id_list[0]
@@ -150,33 +140,6 @@ def main():
         logger.info(f"[SETUP] Run ID: {run_id}")
         logger.info(f"[SETUP] Rank: {rank}, Local Rank: {local_rank}, Device: {device}")
 
-    # WANDB (init early so sweep can override CONFIG)
-    # ─────────────────────────────────────────────────────────
-    if is_main:
-        if HAS_WANDB:
-            # If we're in a sweep, wandb.init() handles project/entity automatically
-            # via the sweep_id passed to the agent.
-            _sweep_id = os.environ.get("WANDB_SWEEP_ID")
-            project_name = "binformer-smoke" if USE_SMOKE else "binformer-full"
-            
-            logger.info(f"[WANDB] Initializing...")
-            wandb.init(
-                project=None if _sweep_id else project_name, # Auto-detect in sweep
-                name=os.environ.get("WANDB_RUN_NAME") or run_id,
-                id=run_id,
-                resume="allow",
-                dir=ckpt_dir,
-                config=CONFIG,
-            )
-            # Pull everything from wandb.config into CONFIG
-            # (Allows any sweep parameter to override config.py)
-            for key, val in wandb.config.items():
-                CONFIG[key] = val
-
-            logger.info(f"  ✓ WANDB Run URL: {wandb.run.get_url()}")
-        else:
-            logger.warning("[WANDB] wandb module not found. Logging to W&B is disabled.")
-
     # Broadcast CONFIG from rank 0 so all ranks use the same hyperparams
     config_list = [CONFIG if is_main else None]
     dist.broadcast_object_list(config_list, src=0)
@@ -192,10 +155,6 @@ def main():
     # 2. Coerce types for ALL ranks
     _coerce_config_types(CONFIG)
 
-    # 3. Update W&B UI on main rank only
-    if is_main and HAS_WANDB and wandb.run:
-        wandb.config.update(CONFIG, allow_val_change=True)
-        
     # LOAD DATA
     # ─────────────────────────────────────────────────────────
     data_dir = Path(CONFIG['data_dir'])
@@ -226,16 +185,15 @@ def main():
     dist.broadcast_object_list(val_indices_list, src=0)
     train_indices = train_indices_list[0]
     val_indices = val_indices_list[0]
-    
+
     if is_main:
         logger.info(f"  ✓ Index time: {time.time()-t0:.1f}s")
-        logger.info("[DATA] Loading data into memory...")
-    
-    X_train = load_batch_data(batch_dir, train_indices, verbose=is_main)
+        logger.info("[DATA] Loading validation data into memory...")
+
     X_val = load_batch_data(batch_dir, val_indices, verbose=is_main)
 
-    num_genes = X_train.shape[1]
-    
+    num_genes = get_num_genes_from_batches(batch_dir)
+
     dataset_kwargs = {
         'mask_ratio': CONFIG['mask_ratio'],
         'dynamic_mask_range': CONFIG.get('dynamic_mask_range'),
@@ -247,7 +205,6 @@ def main():
         'masking_strategy': CONFIG['masking_strategy'],
     }
 
-    train_ds = ExpressionMLMDataset(X_train, **dataset_kwargs)
     val_ds = ExpressionMLMDataset(X_val, **dataset_kwargs)
 
     if is_main:
@@ -256,8 +213,6 @@ def main():
     # ─────────────────────────────────────────────────────────
     # DATASETS & DATALOADERS
     # ─────────────────────────────────────────────────────────
-    train_sampler = DistributedSampler(train_ds, num_replicas=world_size,
-                                        rank=rank, shuffle=True, seed=42)
     val_sampler = DistributedSampler(val_ds, num_replicas=world_size,
                                       rank=rank, shuffle=False, seed=42)
 
@@ -270,13 +225,16 @@ def main():
         loader_kwargs['prefetch_factor'] = int(CONFIG.get('prefetch_factor', 2))
         loader_kwargs['persistent_workers'] = bool(CONFIG.get('persistent_workers', False))
 
-    train_loader = DataLoader(train_ds, batch_size=CONFIG['batch_size'],
-                              sampler=train_sampler, **loader_kwargs)
     val_loader = DataLoader(val_ds, batch_size=CONFIG['batch_size'],
                             sampler=val_sampler, **loader_kwargs)
 
+    # Training data is loaded incrementally, chunks_in_memory chunks at a time
+    chunks_in_memory = CONFIG.get('chunks_in_memory', 4)
+    train_groups = group_indices_by_chunk(train_indices, chunks_in_memory)
+
     if is_main:
-        logger.info(f"[DATA] Train: {len(train_ds):,} samples, {len(train_loader)} batches")
+        logger.info(f"[DATA] Train: {len(train_indices):,} samples across {len(train_groups)} groups "
+                    f"({chunks_in_memory} chunks in memory at a time)")
         logger.info(f"[DATA] Val:   {len(val_ds):,} samples, {len(val_loader)} batches")
 
     # Synchronize after data loading
@@ -303,6 +261,7 @@ def main():
         mask_token_id=CONFIG['mask_token'],
         masking_strategy=CONFIG['masking_strategy'],
         simple_projection=CONFIG.get('expression_projection', 'nonlinear') == 'linear',
+        sample_level_emb=CONFIG.get('sample_level_emb', 0),
     )
 
     model = BulkFM(num_genes=num_genes, cfg=model_cfg).to(device)
@@ -386,6 +345,27 @@ def main():
         cont_loss_fn = F.mse_loss
 
     # ─────────────────────────────────────────────────────────
+    # DYNAMIC MASKING HELPER
+    # ─────────────────────────────────────────────────────────
+    def _apply_dynamic_mask(x_input, ratio=None):
+        """Apply batch-wise dynamic masking, returning (x_input, mask_idx).
+
+        If ``ratio`` is None, the ratio is sampled uniformly from
+        ``dynamic_mask_range`` (train-time behavior). Otherwise the given
+        fixed ratio is used (validation-time behavior).
+        """
+        if ratio is None:
+            lo, hi = CONFIG['dynamic_mask_range']
+            ratio = random.uniform(lo, hi)
+        return apply_dynamic_mask(
+            x_input, ratio,
+            masking_strategy=CONFIG['masking_strategy'],
+            mask_token=CONFIG['mask_token'],
+            mask_token_prob=CONFIG.get('mask_token_prob', 0.8),
+            random_token_prob=CONFIG.get('random_token_prob', 0.1),
+        )
+
+    # ─────────────────────────────────────────────────────────
     # VALIDATION HELPER
     # ─────────────────────────────────────────────────────────
     def _validate():
@@ -399,10 +379,14 @@ def main():
         true_bin_counts = torch.zeros(num_bins + 2, device=device) if is_binned else None
 
         with torch.no_grad():
-            for x_input, targets, mask_idx in val_loader:
+            for x_input, targets, _mask_idx in val_loader:
                 x_input = x_input.to(device)
                 targets = targets.to(device)
-                mask_idx = mask_idx.to(device)
+                if CONFIG.get('dynamic_mask_range') is not None:
+                    x_input, mask_idx = _apply_dynamic_mask(
+                        x_input, ratio=CONFIG.get('val_mask_ratio', 0.15))
+                else:
+                    mask_idx = _mask_idx.to(device)
 
                 with torch.amp.autocast('cuda', dtype=torch.bfloat16):
                     out = model(x_input, mask_idx=mask_idx)
@@ -477,145 +461,134 @@ def main():
         logger.info("=" * 70 + "\n")
 
     n_validations = CONFIG.get('validations_per_epoch', 0) or 0
+    total_train_batches = max(1, math.ceil(len(train_indices) / (world_size * CONFIG['batch_size'])))
     if n_validations > 0:
-        interval = max(1, len(train_loader) // (n_validations + 1))
+        interval = max(1, total_train_batches // (n_validations + 1))
         val_positions = { (i + 1) * interval for i in range(n_validations) }
     else:
         val_positions = set()
-    report_interval = max(1, len(train_loader) // 4)
+    report_interval = max(1, total_train_batches // 4)
 
     for epoch in range(start_epoch, CONFIG['epochs']):
         epoch_start = time.time()
-        train_sampler.set_epoch(epoch)
 
         model.train()
         running_loss = 0.0
         num_batches = 0
+        global_batch = 0
+        stop_training = False
 
-        for batch_idx, (x_input, targets, _mask_idx) in enumerate(train_loader):
-            x_input = x_input.to(device)
+        for group_idx, group_indices in enumerate(train_groups, start=1):
+            t_load = time.time()
+            X_train = load_batch_data(batch_dir, group_indices, verbose=is_main)
+            if is_main:
+                logger.info(f"[DATA] Group {group_idx}/{len(train_groups)} loaded in {time.time()-t_load:.1f}s "
+                            f"({X_train.shape[0]:,} samples)")
 
-            if CONFIG.get('dynamic_mask_range') is not None:
-                B, G = x_input.shape
-                lo, hi = CONFIG['dynamic_mask_range']
-                ratio = random.uniform(lo, hi)
-                num_mask = max(1, int(G * ratio))
-                idxs = torch.randperm(G, device=device).unsqueeze(0).expand(B, -1)
-                mask_idx = idxs[:, :num_mask]
-                if CONFIG['masking_strategy'] == 'mask_token':
-                    x_input = x_input.clone()
-                    mask_token_v = CONFIG['mask_token']
-                    mask_p = CONFIG.get('mask_token_prob', 0.8)
-                    rand_p = CONFIG.get('random_token_prob', 0.1)
-                    probs = torch.rand(B, num_mask, device=device)
-                    is_mask = probs < mask_p
-                    is_rand = (probs >= mask_p) & (probs < mask_p + rand_p)
-                    mask_pos = mask_idx[is_mask]
-                    x_input.view(-1)[mask_pos[:, 0] * G + mask_pos[:, 1]] = mask_token_v
-                    rand_pos = mask_idx[is_rand]
-                    nonzero = x_input[x_input > 0]
-                    if len(nonzero) > 0:
-                        rand_vals = nonzero[torch.randint(len(nonzero), (rand_pos.shape[0],), device=device)]
-                    else:
-                        rand_vals = torch.empty(rand_pos.shape[0], device=device).uniform_(0, 10)
-                    x_input.view(-1)[rand_pos[:, 0] * G + rand_pos[:, 1]] = rand_vals
-            else:
-                mask_idx = _mask_idx.to(device)
+            train_ds = ExpressionMLMDataset(X_train, **dataset_kwargs)
+            train_sampler = DistributedSampler(train_ds, num_replicas=world_size,
+                                                rank=rank, shuffle=True, seed=42)
+            train_sampler.set_epoch(epoch)
+            train_loader = DataLoader(train_ds, batch_size=CONFIG['batch_size'],
+                                      sampler=train_sampler, **loader_kwargs)
 
-            with torch.amp.autocast('cuda', dtype=torch.bfloat16):
-                out = model(x_input, mask_idx=mask_idx)
+            for batch_idx, (x_input, targets, _mask_idx) in enumerate(train_loader):
+                x_input = x_input.to(device)
 
-                B = x_input.shape[0]
-                num_mask = mask_idx.shape[1]
-                if not hasattr(_validate, '_biv') or _validate._biv.shape[0] != B or _validate._biv.shape[1] != num_mask:
-                    _validate._biv = torch.arange(B, device=device).unsqueeze(1).expand(-1, num_mask)
-                batch_idx_vec = _validate._biv
-
-                if is_binned:
-                    targets = targets.to(device)
-                    C = out.shape[-1]
-                    masked_out = out[batch_idx_vec, mask_idx]
-                    masked_targets = targets[batch_idx_vec, mask_idx]
-                    loss = F.cross_entropy(masked_out.reshape(-1, C), masked_targets.reshape(-1))
+                if CONFIG.get('dynamic_mask_range') is not None:
+                    x_input, mask_idx = _apply_dynamic_mask(x_input)
                 else:
-                    targets = targets.to(device)
-                    if out.dim() == 3:
-                        masked_out = out[batch_idx_vec, mask_idx].squeeze(-1)
-                    else:
-                        masked_out = out[batch_idx_vec, mask_idx]
-                    masked_targets = targets[batch_idx_vec, mask_idx]
-                    if CONFIG.get('continuous_loss') == 'poisson':
-                        loss = cont_loss_fn(masked_out, masked_targets.log1p()).mean()
-                    else:
-                        loss = F.mse_loss(masked_out, masked_targets)
+                    mask_idx = _mask_idx.to(device)
 
-            optimizer.zero_grad()
-            scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
-            grad_clip = CONFIG.get('grad_clip_norm')
-            if grad_clip:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-            scaler.step(optimizer)
-            scaler.update()
+                with torch.amp.autocast('cuda', dtype=torch.bfloat16):
+                    out = model(x_input, mask_idx=mask_idx)
 
-            running_loss += loss.item()
-            num_batches += 1
+                    B = x_input.shape[0]
+                    num_mask = mask_idx.shape[1]
+                    if not hasattr(_validate, '_biv') or _validate._biv.shape[0] != B or _validate._biv.shape[1] != num_mask:
+                        _validate._biv = torch.arange(B, device=device).unsqueeze(1).expand(-1, num_mask)
+                    batch_idx_vec = _validate._biv
 
-            if (batch_idx + 1) in val_positions:
-                avg_train = running_loss / num_batches
-                if is_main:
-                    logger.info(f"  Epoch {epoch+1} | Batch {batch_idx+1}/{len(train_loader)} | Loss: {loss.item():.6f} | Avg: {avg_train:.6f}")
-
-                val_loss, val_acc, val_top3, bin_dist, true_dist = _validate()
-
-                if is_main:
                     if is_binned:
-                        logger.info(f"  [Val] Loss: {val_loss:.6f} | Acc: {val_acc:.4f} | Top3: {val_top3:.4f}")
+                        targets = targets.to(device)
+                        C = out.shape[-1]
+                        masked_out = out[batch_idx_vec, mask_idx]
+                        masked_targets = targets[batch_idx_vec, mask_idx]
+                        loss = F.cross_entropy(masked_out.reshape(-1, C), masked_targets.reshape(-1))
                     else:
-                        logger.info(f"  [Val] Loss: {val_loss:.6f} | R2: {val_acc:.4f}")
-
-                    if HAS_WANDB:
-                        log_dict = {
-                            'batch': batch_idx + 1,
-                            'train_loss': avg_train,
-                            'val_loss': val_loss,
-                            'lr': optimizer.param_groups[0]['lr'],
-                        }
-                        if is_binned:
-                            log_dict['val_acc'] = val_acc
-                            log_dict['val_top3'] = val_top3
+                        targets = targets.to(device)
+                        if out.dim() == 3:
+                            masked_out = out[batch_idx_vec, mask_idx].squeeze(-1)
                         else:
-                            log_dict['val_r2'] = val_acc
-                        wandb.log(log_dict)
+                            masked_out = out[batch_idx_vec, mask_idx]
+                        masked_targets = targets[batch_idx_vec, mask_idx]
+                        if CONFIG.get('continuous_loss') == 'poisson':
+                            loss = cont_loss_fn(masked_out, masked_targets.log1p()).mean()
+                        else:
+                            loss = F.mse_loss(masked_out, masked_targets)
 
-                if val_loss < best_val_loss:
-                    best_val_loss = val_loss
-                    patience_counter = 0
+                optimizer.zero_grad()
+                scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)
+                grad_clip = CONFIG.get('grad_clip_norm')
+                if grad_clip:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+                scaler.step(optimizer)
+                scaler.update()
+
+                running_loss += loss.item()
+                num_batches += 1
+                global_batch += 1
+
+                if global_batch in val_positions:
+                    avg_train = running_loss / num_batches
                     if is_main:
-                        checkpoint_payload = {
-                            'model_state_dict': model_module.state_dict(),
-                            'optimizer_state_dict': optimizer.state_dict(),
-                            'warmup_scheduler_state_dict': warmup_scheduler.state_dict(),
-                            'cosine_scheduler_state_dict': cosine_scheduler.state_dict(),
-                            'epoch': epoch + 1,
-                            'val_loss': val_loss,
-                            'val_acc': val_acc,
-                            'config': CONFIG,
-                        }
-                        torch.save(checkpoint_payload, ckpt_dir / "best_model.pt")
+                        logger.info(f"  Epoch {epoch+1} | Batch {global_batch}/{total_train_batches} | Loss: {loss.item():.6f} | Avg: {avg_train:.6f}")
+
+                    val_loss, val_acc, val_top3, bin_dist, true_dist = _validate()
+
+                    if is_main:
+                        if is_binned:
+                            logger.info(f"  [Val] Loss: {val_loss:.6f} | Acc: {val_acc:.4f} | Top3: {val_top3:.4f}")
+                        else:
+                            logger.info(f"  [Val] Loss: {val_loss:.6f} | R2: {val_acc:.4f}")
+
+                    if val_loss < best_val_loss:
+                        best_val_loss = val_loss
+                        patience_counter = 0
                         if is_main:
-                            logger.info(f"  ✓ New best! Saved best_model.pt")
-                else:
-                    if CONFIG['early_stopping']:
-                        patience_counter += 1
-                        if patience_counter >= CONFIG['patience']:
+                            checkpoint_payload = {
+                                'model_state_dict': model_module.state_dict(),
+                                'optimizer_state_dict': optimizer.state_dict(),
+                                'warmup_scheduler_state_dict': warmup_scheduler.state_dict(),
+                                'cosine_scheduler_state_dict': cosine_scheduler.state_dict(),
+                                'epoch': epoch + 1,
+                                'val_loss': val_loss,
+                                'val_acc': val_acc,
+                                'config': CONFIG,
+                            }
+                            torch.save(checkpoint_payload, ckpt_dir / "best_model.pt")
                             if is_main:
-                                logger.info(f"  ⚠ Early stopping at batch {batch_idx+1}")
-                            break
-            elif (batch_idx + 1) % report_interval == 0 and is_main:
-                avg_train = running_loss / num_batches
-                pct = (batch_idx + 1) / len(train_loader) * 100
-                logger.info(f"  Epoch {epoch+1} | {pct:.0f}% | Batch {batch_idx+1}/{len(train_loader)} | Loss: {loss.item():.6f} | Avg: {avg_train:.6f}")
+                                logger.info(f"  ✓ New best! Saved best_model.pt")
+                    else:
+                        if CONFIG['early_stopping']:
+                            patience_counter += 1
+                            if patience_counter >= CONFIG['patience']:
+                                if is_main:
+                                    logger.info(f"  ⚠ Early stopping at batch {global_batch}")
+                                stop_training = True
+                                break
+                elif global_batch % report_interval == 0 and is_main:
+                    avg_train = running_loss / num_batches
+                    pct = global_batch / total_train_batches * 100
+                    logger.info(f"  Epoch {epoch+1} | {pct:.0f}% | Batch {global_batch}/{total_train_batches} | Loss: {loss.item():.6f} | Avg: {avg_train:.6f}")
+
+            del X_train, train_ds, train_loader, train_sampler
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            if stop_training:
+                break
 
         epoch_train_loss = running_loss / max(1, num_batches)
         epoch_val_loss, epoch_val_acc, epoch_val_top3, bin_dist, true_dist = _validate()
@@ -694,9 +667,6 @@ def main():
         logger.info(f"Training complete. Best Val Loss: {best_val_loss:.6f}")
         logger.info(f"Checkpoints saved to {ckpt_dir}")
         logger.info("=" * 70)
-
-    if is_main and HAS_WANDB:
-        wandb.finish()
 
     dist.barrier()
     dist.destroy_process_group()

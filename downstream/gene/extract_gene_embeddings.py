@@ -48,6 +48,7 @@ def config_from_checkpoint(checkpoint_path: str) -> tuple[BulkFMConfig, bool]:
             mask_ratio=data.get("mask_ratio", 0.15),
             mask_token_id=data.get("mask_token", -10.0),
             simple_projection=data.get("expression_projection", "nonlinear") == "linear",
+            sample_level_emb=data.get("sample_level_emb", 0),
         ), True
     return None, False
 
@@ -96,12 +97,6 @@ def main():
             expression_embedding=args.expression_embedding,
             masking_strategy=args.masking_strategy,
         )
-
-    # Detect old checkpoint format (simple_projection)
-    if "expr_embedding.expr_proj.weight" in state_dict and \
-       not any("expr_embedding.expr_proj.0.weight" in k for k in state_dict):
-        print("  Detected old checkpoint format (simple_projection=True)")
-        cfg.simple_projection = True
 
     model = BulkFM(num_genes, cfg)
     model.load_state_dict(state_dict)

@@ -3,22 +3,21 @@ set -euo pipefail
 
 # Usage:
 #   bash downstream/gene/run_benchmark_pipeline.sh \
-#       <checkpoint_path> <output_name> <masking_strategy>
+#       <checkpoint_path> <output_name> [extraction_mode]
 #
 # Example:
 #   bash downstream/gene/run_benchmark_pipeline.sh \
-#       checkpoints/train_20260730_223417_local/best_model.pt \
-#       BulkFM-CLS-CONT-15 cls_bottleneck
+#       checkpoints/train_20260801_054758_local/best_model.pt \
+#       BulkFM-MASK-CONT-VAR
 #
-# Prerequisites:
-#   - conda environments: nasa (BulkFM), gene_embed_benchmark (benchmark repo)
-#   - gene-embedding-benchmarks cloned at ~/gene-embedding-benchmarks
-#   - checkpoints/gene_vocabulary.csv exists
-#   - Benchmark data splits exist
+# extraction_mode: forward_mask (default) | table
+#   forward_mask runs the model on an all-mask-token input and takes the
+#   hidden states (only valid for masking_strategy='mask_token').
+#   If the target embedding folder already exists, extraction is skipped.
 
 CKPT="$1"
 OUTPUT_NAME="$2"
-MASKING_STRATEGY="$3"
+EXTRACTION_MODE="${3:-forward_mask}"
 
 BENCH_DIR="$HOME/gene-embedding-benchmarks"
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -30,16 +29,22 @@ echo "=============================================="
 echo "  BulkFM Benchmark Pipeline"
 echo "  Checkpoint: $CKPT"
 echo "  Output:     $OUTPUT_NAME"
-echo "  Masking:    $MASKING_STRATEGY"
+echo "  Extraction: $EXTRACTION_MODE"
 echo "=============================================="
 
 # ---- Step 1: Extract embeddings & prepare ----
 echo ""
 echo "=== Step 1: Extract and prepare embeddings ==="
-conda run -n nasa python "$ROOT_DIR/downstream/gene/prepare_embeddings_for_benchmark.py" \
-    --checkpoint "$CKPT" \
-    --output-name "$OUTPUT_NAME" \
-    2>&1 | tee "$LOG_DIR/${TIMESTAMP}_${OUTPUT_NAME}_extract.log"
+SUB_FOLDER="$BENCH_DIR/data/embeddings/intersect/$OUTPUT_NAME"
+if [ -f "$SUB_FOLDER/${OUTPUT_NAME}emb.csv" ]; then
+    echo "  Embeddings already exist, skipping extraction"
+else
+    conda run -n nasa python "$ROOT_DIR/downstream/gene/prepare_embeddings_for_benchmark.py" \
+        --checkpoint "$CKPT" \
+        --output-name "$OUTPUT_NAME" \
+        --extraction-mode "$EXTRACTION_MODE" \
+        2>&1 | tee "$LOG_DIR/${TIMESTAMP}_${OUTPUT_NAME}_extract.log"
+fi
 
 # ---- Step 2: Run gene-level benchmarks ----
 echo ""

@@ -112,6 +112,47 @@ class ExpressionMLMDataset(Dataset):
             torch.tensor(mask_indices, dtype=torch.long),
         )
 
+def apply_dynamic_mask(x_input, ratio, masking_strategy='mask_token',
+                       mask_token=-10, mask_token_prob=0.8,
+                       random_token_prob=0.1):
+    """Mask ``ratio`` of genes per sample with a per-sample permutation.
+
+    Returns (x_input_masked, mask_idx) where mask_idx[i] holds the gene
+    columns that were masked for sample i. The input is modified **exactly**
+    at the positions in mask_idx: genes drawn to be masked are replaced with
+    ``mask_token`` (with prob ``mask_token_prob``) or a random non-zero value
+    from the batch (with prob ``random_token_prob``); the remaining masked
+    genes are left untouched (i.e., "keep").
+    """
+    B, G = x_input.shape
+    num_mask = max(1, int(G * ratio))
+    # Per-sample random permutation (argsort of iid uniforms).
+    idxs = torch.argsort(torch.rand(B, G, device=x_input.device), dim=1)
+    mask_idx = idxs[:, :num_mask]
+
+    if masking_strategy == 'mask_token':
+        x_input = x_input.clone().contiguous()
+        flat = x_input.view(-1)
+        probs = torch.rand(B, num_mask, device=x_input.device)
+        is_mask = probs < mask_token_prob
+        is_rand = (probs >= mask_token_prob) & (probs < mask_token_prob + random_token_prob)
+        mask_pos = is_mask.nonzero()
+        if len(mask_pos) > 0:
+            flat[mask_pos[:, 0] * G + mask_idx[mask_pos[:, 0], mask_pos[:, 1]]] = mask_token
+        rand_pos = is_rand.nonzero()
+        if len(rand_pos) > 0:
+            nonzero = x_input[x_input > 0]
+            if len(nonzero) > 0:
+                rand_vals = nonzero[torch.randint(len(nonzero), (len(rand_pos),), device=x_input.device)]
+            else:
+                rand_vals = torch.empty(len(rand_pos), device=x_input.device).uniform_(0, 10)
+            flat[rand_pos[:, 0] * G + mask_idx[rand_pos[:, 0], rand_pos[:, 1]]] = rand_vals
+    else:
+        x_input = x_input.clone()
+
+    return x_input, mask_idx
+
+
 def get_sample_indices(batch_dir, train_chunks=None, val_chunks=None,
                        train_subset=None, val_subset=None,
                        seed=42, verbose=True):
@@ -223,6 +264,34 @@ def get_num_genes_from_batches(batch_dir):
         raise FileNotFoundError(f"No expression parquet files found in {batch_dir}")
     pf = pq.ParquetFile(str(batch_files[0]))
     return len(_parquet_numeric_gene_columns(pf.schema_arrow))
+
+
+def group_indices_by_chunk(sample_indices, chunks_in_memory=None):
+    """Split sample indices into groups, each spanning up to ``chunks_in_memory`` chunks.
+
+    Returns a list of lists of ``(batch_idx, sample_in_batch)`` pairs (the same
+    structure produced by :func:`get_sample_indices`). Groups are ordered by
+    chunk index so that data can be loaded and trained on incrementally.
+    If ``chunks_in_memory`` is None, all chunks go into a single group.
+    """
+    from collections import OrderedDict
+
+    by_chunk = OrderedDict()
+    for entry in sample_indices:
+        batch_idx = entry[0]
+        by_chunk.setdefault(batch_idx, []).append(entry)
+
+    chunk_order = sorted(by_chunk.keys())
+    if chunks_in_memory is None or chunks_in_memory <= 0:
+        chunks_in_memory = len(chunk_order)
+
+    groups = []
+    for i in range(0, len(chunk_order), chunks_in_memory):
+        group = []
+        for c in chunk_order[i:i + chunks_in_memory]:
+            group.extend(by_chunk[c])
+        groups.append(group)
+    return groups
 
 
 def get_gene_vocabulary(batch_dir):

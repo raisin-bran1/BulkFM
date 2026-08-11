@@ -1,0 +1,14 @@
+Processing 'BulkFM-CLS-CONT-15' | Operation: sum
+Original positives: 2124, Filtered positives: 733
+Fold 0: train=4106, outer=1053
+Fold 1: train=4244, outer=947
+Fold 2: train=3937, outer=1089
+
+Results:
+   fold  best_C  inner_AUC  inner_AUPRC  inner_PR@10  inner_time  outer_AUC  outer_AUPRC  outer_PR@10  outer_time  orig_pos_pairs  filtered_pos_pairs
+      0     0.1   0.566529     0.140988     0.100000    1.672875   0.534884     0.025370          0.0    0.278789          2124.0               733.0
+      1    10.0   0.421023     0.088789     0.000000    0.577128   0.433048     0.044771          0.0    0.102783          2124.0               733.0
+      2     1.0   0.390676     0.030906     0.000000    0.567804   0.263456     0.100217          0.0    0.149704          2124.0               733.0
+average     0.1   0.459410     0.086894     0.033333    0.939269   0.410463     0.056786          0.0    0.177092          2124.0               733.0
+
+Saved to /home/exouser/gene-embedding-benchmarks/results/tsvs/BulkFM-CLS-CONT-15_sum_intersected_sl.csv

@@ -1,0 +1,394 @@
+GO:0006325,Unique genes before filter: 2263
+Unique genes in embed: 1445
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=1.0:
+Holdout AUC: 0.5824
+Holdout AUPRC: 0.3171
+Holdout PR@10: 0.3000
+Holdout Duration: 0.28s
+GO:0006402,Unique genes before filter: 1030
+Unique genes in embed: 689
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.6679
+Holdout AUPRC: 0.2049
+Holdout PR@10: 0.2000
+Holdout Duration: 0.06s
+GO:0000381,Unique genes before filter: 493
+Unique genes in embed: 344
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=10.0:
+Holdout AUC: 0.5497
+Holdout AUPRC: 0.1048
+Holdout PR@10: 0.0000
+Holdout Duration: 0.02s
+GO:0045089,Unique genes before filter: 1727
+Unique genes in embed: 1109
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=10.0:
+Holdout AUC: 0.6301
+Holdout AUPRC: 0.1892
+Holdout PR@10: 0.3000
+Holdout Duration: 0.15s
+GO:0043488,Unique genes before filter: 1417
+Unique genes in embed: 969
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.6063
+Holdout AUPRC: 0.1089
+Holdout PR@10: 0.0000
+Holdout Duration: 0.11s
+GO:0045787,Unique genes before filter: 1769
+Unique genes in embed: 1168
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=100.0:
+Holdout AUC: 0.4883
+Holdout AUPRC: 0.1238
+Holdout PR@10: 0.2000
+Holdout Duration: 0.17s
+GO:0050890,Unique genes before filter: 1761
+Unique genes in embed: 1254
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5841
+Holdout AUPRC: 0.1787
+Holdout PR@10: 0.2000
+Holdout Duration: 0.19s
+GO:0007399,Unique genes before filter: 2700
+Unique genes in embed: 1802
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5565
+Holdout AUPRC: 0.5196
+Holdout PR@10: 0.6000
+Holdout Duration: 0.45s
+GO:0060828,Unique genes before filter: 1704
+Unique genes in embed: 1089
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=1.0:
+Holdout AUC: 0.4564
+Holdout AUPRC: 0.1125
+Holdout PR@10: 0.1000
+Holdout Duration: 0.14s
+GO:0006493,Unique genes before filter: 863
+Unique genes in embed: 573
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=1.0:
+Holdout AUC: 0.6272
+Holdout AUPRC: 0.2128
+Holdout PR@10: 0.3000
+Holdout Duration: 0.04s
+GO:0007605,Unique genes before filter: 1444
+Unique genes in embed: 968
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.6514
+Holdout AUPRC: 0.1290
+Holdout PR@10: 0.2000
+Holdout Duration: 0.11s
+GO:0016236,Unique genes before filter: 1668
+Unique genes in embed: 1071
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.7124
+Holdout AUPRC: 0.1924
+Holdout PR@10: 0.3000
+Holdout Duration: 0.15s
+GO:0010506,Unique genes before filter: 1764
+Unique genes in embed: 1157
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.6020
+Holdout AUPRC: 0.1788
+Holdout PR@10: 0.0000
+Holdout Duration: 0.18s
+GO:0042476,Unique genes before filter: 1039
+Unique genes in embed: 696
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=10.0:
+Holdout AUC: 0.4744
+Holdout AUPRC: 0.1125
+Holdout PR@10: 0.1000
+Holdout Duration: 0.05s
+GO:0050679,Unique genes before filter: 1657
+Unique genes in embed: 1143
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5802
+Holdout AUPRC: 0.1409
+Holdout PR@10: 0.2000
+Holdout Duration: 0.17s
+GO:0006631,Unique genes before filter: 1752
+Unique genes in embed: 1204
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5795
+Holdout AUPRC: 0.1826
+Holdout PR@10: 0.3000
+Holdout Duration: 0.18s
+GO:0007283,Unique genes before filter: 1984
+Unique genes in embed: 1243
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=10.0:
+Holdout AUC: 0.4889
+Holdout AUPRC: 0.2137
+Holdout PR@10: 0.4000
+Holdout Duration: 0.20s
+GO:0001654,Unique genes before filter: 1820
+Unique genes in embed: 1200
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5421
+Holdout AUPRC: 0.1778
+Holdout PR@10: 0.2000
+Holdout Duration: 0.18s
+GO:0051310,Unique genes before filter: 696
+Unique genes in embed: 464
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=1.0:
+Holdout AUC: 0.5108
+Holdout AUPRC: 0.1861
+Holdout PR@10: 0.2000
+Holdout Duration: 0.03s
+GO:0001578,Unique genes before filter: 1048
+Unique genes in embed: 715
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.4250
+Holdout AUPRC: 0.0764
+Holdout PR@10: 0.0000
+Holdout Duration: 0.06s
+GO:0007601,Unique genes before filter: 1677
+Unique genes in embed: 1161
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.6349
+Holdout AUPRC: 0.1538
+Holdout PR@10: 0.2000
+Holdout Duration: 0.16s
+GO:0006400,Unique genes before filter: 784
+Unique genes in embed: 551
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=10.0:
+Holdout AUC: 0.5541
+Holdout AUPRC: 0.1154
+Holdout PR@10: 0.1000
+Holdout Duration: 0.03s
+GO:0031297,Unique genes before filter: 414
+Unique genes in embed: 269
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5657
+Holdout AUPRC: 0.0930
+Holdout PR@10: 0.0000
+Holdout Duration: 0.01s
+GO:0008584,Unique genes before filter: 1276
+Unique genes in embed: 827
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=100.0:
+Holdout AUC: 0.5909
+Holdout AUPRC: 0.1661
+Holdout PR@10: 0.2000
+Holdout Duration: 0.07s
+GO:2000781,Unique genes before filter: 643
+Unique genes in embed: 409
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.6071
+Holdout AUPRC: 0.1066
+Holdout PR@10: 0.0000
+Holdout Duration: 0.02s
+GO:0045814,Unique genes before filter: 1391
+Unique genes in embed: 967
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=1.0:
+Holdout AUC: 0.5972
+Holdout AUPRC: 0.1210
+Holdout PR@10: 0.1000
+Holdout Duration: 0.09s
+GO:0050731,Unique genes before filter: 1030
+Unique genes in embed: 707
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5154
+Holdout AUPRC: 0.1480
+Holdout PR@10: 0.2000
+Holdout Duration: 0.06s
+GO:0001666,Unique genes before filter: 1731
+Unique genes in embed: 1107
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5764
+Holdout AUPRC: 0.1442
+Holdout PR@10: 0.0000
+Holdout Duration: 0.16s
+GO:0034341,Unique genes before filter: 933
+Unique genes in embed: 616
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5393
+Holdout AUPRC: 0.1304
+Holdout PR@10: 0.0000
+Holdout Duration: 0.05s
+GO:0070555,Unique genes before filter: 880
+Unique genes in embed: 574
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=1.0:
+Holdout AUC: 0.5307
+Holdout AUPRC: 0.3047
+Holdout PR@10: 0.4000
+Holdout Duration: 0.04s
+GO:0008202,Unique genes before filter: 1702
+Unique genes in embed: 1161
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5842
+Holdout AUPRC: 0.1211
+Holdout PR@10: 0.0000
+Holdout Duration: 0.17s
+GO:0046034,Unique genes before filter: 968
+Unique genes in embed: 649
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.4444
+Holdout AUPRC: 0.0866
+Holdout PR@10: 0.1000
+Holdout Duration: 0.06s
+GO:0031398,Unique genes before filter: 951
+Unique genes in embed: 649
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.6432
+Holdout AUPRC: 0.1733
+Holdout PR@10: 0.1000
+Holdout Duration: 0.05s
+GO:0006813,Unique genes before filter: 1611
+Unique genes in embed: 1120
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.6388
+Holdout AUPRC: 0.1557
+Holdout PR@10: 0.2000
+Holdout Duration: 0.13s
+GO:0042593,Unique genes before filter: 1658
+Unique genes in embed: 1109
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5271
+Holdout AUPRC: 0.1565
+Holdout PR@10: 0.2000
+Holdout Duration: 0.15s
+GO:0097190,Unique genes before filter: 1753
+Unique genes in embed: 1134
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5608
+Holdout AUPRC: 0.1503
+Holdout PR@10: 0.1000
+Holdout Duration: 0.16s
+GO:0097191,Unique genes before filter: 1004
+Unique genes in embed: 650
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5898
+Holdout AUPRC: 0.1223
+Holdout PR@10: 0.1000
+Holdout Duration: 0.05s
+GO:0001938,Unique genes before filter: 784
+Unique genes in embed: 554
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.4607
+Holdout AUPRC: 0.0830
+Holdout PR@10: 0.0000
+Holdout Duration: 0.04s
+GO:1901224,Unique genes before filter: 537
+Unique genes in embed: 373
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.4115
+Holdout AUPRC: 0.0996
+Holdout PR@10: 0.0000
+Holdout Duration: 0.02s
+GO:0050796,Unique genes before filter: 1514
+Unique genes in embed: 1030
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5457
+Holdout AUPRC: 0.1547
+Holdout PR@10: 0.2000
+Holdout Duration: 0.12s
+GO:0001649,Unique genes before filter: 1224
+Unique genes in embed: 806
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.4426
+Holdout AUPRC: 0.1179
+Holdout PR@10: 0.2000
+Holdout Duration: 0.08s
+GO:0051865,Unique genes before filter: 608
+Unique genes in embed: 411
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5668
+Holdout AUPRC: 0.1201
+Holdout PR@10: 0.1000
+Holdout Duration: 0.02s
+GO:0042632,Unique genes before filter: 775
+Unique genes in embed: 507
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5057
+Holdout AUPRC: 0.0990
+Holdout PR@10: 0.0000
+Holdout Duration: 0.03s
+GO:0000724,Unique genes before filter: 1021
+Unique genes in embed: 648
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=10.0:
+Holdout AUC: 0.5575
+Holdout AUPRC: 0.1439
+Holdout PR@10: 0.2000
+Holdout Duration: 0.04s
+GO:0050680,Unique genes before filter: 1197
+Unique genes in embed: 814
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5392
+Holdout AUPRC: 0.1344
+Holdout PR@10: 0.1000
+Holdout Duration: 0.08s
+GO:0061844,Unique genes before filter: 1074
+Unique genes in embed: 711
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5584
+Holdout AUPRC: 0.1894
+Holdout PR@10: 0.2000
+Holdout Duration: 0.06s
+GO:0006888,Unique genes before filter: 1039
+Unique genes in embed: 693
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.6726
+Holdout AUPRC: 0.1515
+Holdout PR@10: 0.1000
+Holdout Duration: 0.06s
+GO:0000086,Unique genes before filter: 414
+Unique genes in embed: 284
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.6436
+Holdout AUPRC: 0.2655
+Holdout PR@10: 0.1000
+Holdout Duration: 0.02s
+GO:0006693,Unique genes before filter: 344
+Unique genes in embed: 226
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=10.0:
+Holdout AUC: 0.5519
+Holdout AUPRC: 0.1180
+Holdout PR@10: 0.1000
+Holdout Duration: 0.01s
+GO:0090303,Unique genes before filter: 537
+Unique genes in embed: 341
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5977
+Holdout AUPRC: 0.2134
+Holdout PR@10: 0.4000
+Holdout Duration: 0.02s
+GO:0007189,Unique genes before filter: 1417
+Unique genes in embed: 914
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5715
+Holdout AUPRC: 0.1587
+Holdout PR@10: 0.2000
+Holdout Duration: 0.10s
+GO:0001837,Unique genes before filter: 731
+Unique genes in embed: 460
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=1.0:
+Holdout AUC: 0.6250
+Holdout AUPRC: 0.1414
+Holdout PR@10: 0.2000
+Holdout Duration: 0.02s
+GO:2001244,Unique genes before filter: 528
+Unique genes in embed: 351
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.7296
+Holdout AUPRC: 0.2363
+Holdout PR@10: 0.3000
+Holdout Duration: 0.02s
+GO:0006487,Unique genes before filter: 652
+Unique genes in embed: 439
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=10.0:
+Holdout AUC: 0.5259
+Holdout AUPRC: 0.1189
+Holdout PR@10: 0.1000
+Holdout Duration: 0.02s
+GO:0006879,Unique genes before filter: 581
+Unique genes in embed: 401
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=10.0:
+Holdout AUC: 0.4856
+Holdout AUPRC: 0.1246
+Holdout PR@10: 0.1000
+Holdout Duration: 0.02s
+GO:0035987,Unique genes before filter: 405
+Unique genes in embed: 266
+Holdout performance for /home/exouser/gene-embedding-benchmarks/data/embeddings/intersect/BulkFM-MASK-CONT-31 with best C=0.1:
+Holdout AUC: 0.5061
+Holdout AUPRC: 0.0907
+Holdout PR@10: 0.1000
+Holdout Duration: 0.01s
+Saved fold results to /home/exouser/gene-embedding-benchmarks/results/tsvs/BulkFM-MASK-CONT-31_fold_results.pkl
+Saved holdout results to /home/exouser/gene-embedding-benchmarks/results/tsvs/BulkFM-MASK-CONT-31_holdout_results.pkl

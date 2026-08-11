@@ -1,0 +1,14 @@
+Processing 'BulkFormer-147M' | Operation: sum
+Original positives: 2124, Filtered positives: 733
+Fold 0: train=4106, outer=1053
+Fold 1: train=4244, outer=947
+Fold 2: train=3937, outer=1089
+
+Results:
+   fold  best_C  inner_AUC  inner_AUPRC  inner_PR@10  inner_time  outer_AUC  outer_AUPRC  outer_PR@10  outer_time  orig_pos_pairs  filtered_pos_pairs
+      0    1000   0.582393     0.111618     0.033333    3.270073   0.669343     0.078261     0.200000    0.463646          2124.0               733.0
+      1       1   0.779316     0.251961     0.266667    3.721278   0.534317     0.058088     0.100000    0.710841          2124.0               733.0
+      2     100   0.617421     0.055138     0.033333    3.794683   0.455179     0.135775     0.100000    1.090267          2124.0               733.0
+average       1   0.659710     0.139572     0.111111    3.595345   0.552946     0.090708     0.133333    0.754918          2124.0               733.0
+
+Saved to /home/exouser/gene-embedding-benchmarks/results/tsvs/BulkFormer-147M_sum_intersected_sl.csv

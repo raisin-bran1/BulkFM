@@ -1,0 +1,14 @@
+Processing 'BulkFormer-147M' | Operation: sum
+Original positives: 5966, Filtered positives: 2535
+Fold 0: train=11261, outer=2845
+Fold 1: train=11287, outer=2725
+Fold 2: train=11252, outer=2795
+
+Results:
+   fold  best_C  inner_AUC  inner_AUPRC  inner_PR@10  inner_time  outer_AUC  outer_AUPRC  outer_PR@10  outer_time  orig_pos_pairs  filtered_pos_pairs
+      0  1000.0   0.607996     0.125415     0.100000  102.208121   0.518033     0.123291     0.300000   17.823506          5966.0              2535.0
+      1  1000.0   0.531397     0.117747     0.100000   54.663986   0.558875     0.099969     0.200000   11.767589          5966.0              2535.0
+      2     0.1   0.538465     0.117537     0.066667   64.023678   0.548968     0.111894     0.000000   14.249894          5966.0              2535.0
+average  1000.0   0.559286     0.120233     0.088889   73.631928   0.541959     0.111718     0.166667   14.613663          5966.0              2535.0
+
+Saved to /home/exouser/gene-embedding-benchmarks/results/tsvs/BulkFormer-147M_sum_intersected_pombe.csv

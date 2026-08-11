@@ -1,0 +1,14 @@
+Processing 'BulkFM-MASK-BIN-15' | Operation: sum
+Original positives: 2124, Filtered positives: 733
+Fold 0: train=4106, outer=1053
+Fold 1: train=4244, outer=947
+Fold 2: train=3937, outer=1089
+
+Results:
+   fold  best_C  inner_AUC  inner_AUPRC  inner_PR@10  inner_time  outer_AUC  outer_AUPRC  outer_PR@10  outer_time  orig_pos_pairs  filtered_pos_pairs
+      0      10   0.605817     0.122986     0.033333    1.278157   0.746955     0.109054          0.3    0.097826          2124.0               733.0
+      1       1   0.627487     0.179020     0.200000    0.663388   0.752239     0.198766          0.4    0.121778          2124.0               733.0
+      2     100   0.387319     0.053521     0.033333    0.441636   0.745974     0.311427          0.5    0.101505          2124.0               733.0
+average       1   0.540207     0.118509     0.088889    0.794394   0.748389     0.206416          0.4    0.107036          2124.0               733.0
+
+Saved to /home/exouser/gene-embedding-benchmarks/results/tsvs/BulkFM-MASK-BIN-15_sum_intersected_sl.csv

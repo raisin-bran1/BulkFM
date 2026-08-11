@@ -1,0 +1,14 @@
+Processing 'BulkFM-MASK-CONT-VAR' | Operation: sum
+Original positives: 10568, Filtered positives: 4927
+Fold 0: train=19502, outer=5184
+Fold 1: train=20791, outer=4637
+Fold 2: train=19508, outer=5110
+
+Results:
+   fold  best_C  inner_AUC  inner_AUPRC  inner_PR@10  inner_time  outer_AUC  outer_AUPRC  outer_PR@10  outer_time  orig_pos_pairs  filtered_pos_pairs
+      0     0.1   0.593091     0.183013     0.266667   72.329894   0.310197     0.093766     0.200000   12.110839         10568.0              4927.0
+      1     0.1   0.527081     0.140046     0.066667   77.514125   0.508909     0.066659     0.100000    9.480529         10568.0              4927.0
+      2     1.0   0.554965     0.142683     0.366667   59.828966   0.638269     0.214319     0.700000   10.605423         10568.0              4927.0
+average     0.1   0.558379     0.155248     0.233333   69.890995   0.485792     0.124915     0.333333   10.732264         10568.0              4927.0
+
+Saved to /home/exouser/gene-embedding-benchmarks/results/tsvs/BulkFM-MASK-CONT-VAR_sum_intersected_ng.csv

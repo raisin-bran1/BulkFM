@@ -75,7 +75,8 @@ def map_ensg_to_entrez(ensg_ids: list[str], cache_path: str) -> dict[str, str]:
     return mapping
 
 
-def extract_embeddings(checkpoint_path: str, cfg: BulkFMConfig, device: torch.device):
+def extract_embeddings(checkpoint_path: str, cfg: BulkFMConfig, device: torch.device,
+                       extraction_mode: str = "table"):
     ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     state_dict = ckpt.get("model_state_dict", ckpt)
     state_dict = clean_state_dict(state_dict)
@@ -88,18 +89,25 @@ def extract_embeddings(checkpoint_path: str, cfg: BulkFMConfig, device: torch.de
     if num_genes is None:
         raise ValueError("Could not infer num_genes from checkpoint")
 
-    if "expr_embedding.expr_proj.weight" in state_dict and \
-       not any("expr_embedding.expr_proj.0.weight" in k for k in state_dict):
-        print("  Detected old checkpoint format (simple_projection=True)")
-        cfg.simple_projection = True
-
     model = BulkFM(num_genes, cfg)
     model.load_state_dict(state_dict)
     model.to(device)
     model.eval()
 
-    gene_ids = torch.arange(num_genes, device=device)
-    gene_emb = model.gene_embedding(gene_ids).cpu().numpy()
+    if extraction_mode == "table":
+        gene_ids = torch.arange(num_genes, device=device)
+        gene_emb = model.gene_embedding(gene_ids).cpu().numpy()
+    elif extraction_mode == "forward_mask":
+        if cfg.masking_strategy != "mask_token":
+            raise ValueError(
+                "forward_mask extraction requires masking_strategy='mask_token'")
+        x = torch.full((1, num_genes), cfg.mask_token_id,
+                       dtype=torch.float32, device=device)
+        with torch.no_grad():
+            h = model(x, output_hidden=True)
+        gene_emb = h[0].cpu().numpy()
+    else:
+        raise ValueError(f"Unknown extraction mode: {extraction_mode}")
     return gene_emb, num_genes
 
 
@@ -115,6 +123,11 @@ def main():
                         help="Path to gene-embedding-benchmarks repo")
     parser.add_argument("--mapping-cache", type=str, default=None,
                         help="Path to cache ENSG→Entrez mapping CSV")
+    parser.add_argument("--extraction-mode", type=str, default="table",
+                        choices=["table", "forward_mask"],
+                        help="table: raw gene_embedding table; forward_mask: run model "
+                             "on all-mask-token input and take hidden states (requires "
+                             "mask_token masking strategy)")
 
     parser.add_argument("--hidden-dim", type=int, default=256)
     parser.add_argument("--ffn-dim", type=int, default=1024)
@@ -153,6 +166,7 @@ def main():
             expression_embedding=args.expression_embedding or data.get("expression_embedding", "continuous"),
             masking_strategy=args.masking_strategy or data.get("masking_strategy", "mask_token"),
             simple_projection=data.get("expression_projection", "nonlinear") == "linear",
+            sample_level_emb=data.get("sample_level_emb", 0),
         )
     else:
         print("No config.json found, using CLI args")
@@ -177,9 +191,11 @@ def main():
 
     print("=== Step 2: Extract gene embeddings ===")
     t0 = time.time()
-    gene_emb, num_genes = extract_embeddings(args.checkpoint, cfg, device)
+    gene_emb, num_genes = extract_embeddings(args.checkpoint, cfg, device,
+                                             args.extraction_mode)
     dt = time.time() - t0
-    print(f"  Extracted {num_genes} genes x {gene_emb.shape[1]} dims in {dt:.1f}s")
+    print(f"  Extracted {num_genes} genes x {gene_emb.shape[1]} dims in {dt:.1f}s "
+          f"(mode={args.extraction_mode})")
 
     print("=== Step 3: Map ENSG→Entrez ===")
     mapping_cache = args.mapping_cache or os.path.join(
